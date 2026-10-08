@@ -1,4 +1,4 @@
-"""HTTP/device entrypoint. Only an explicitly labeled fake voice adapter is available."""
+"""HTTP/device entrypoint with opt-in live providers and a diagnostic default."""
 
 import asyncio
 import json
@@ -52,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "You are Toad, a calm desk companion. Be concise. Delegate tools, camera, memory, "
                 "tasks and web requests to the client. Do not claim actions succeeded without results.",
             )
+        desk.start_scheduler()
         try:
             yield
         finally:

@@ -14,7 +14,9 @@ Python now includes opt-in GPT-Live speech transport and a saved-agent reasoning
 
 ## Run the Python engine
 
-From the repository root:
+From the repository root, run `python3 scripts/setup.py` to install the locked Python environment and create a private `.env` with a random device token. Existing `.env` files are preserved. Use `python3 scripts/setup.py --check` to inspect prerequisites.
+
+Manual setup:
 
 ```bash
 .venv/bin/python -m pip install -r server/requirements.lock

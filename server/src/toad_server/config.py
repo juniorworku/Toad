@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     data_dir: Path = Path("./data")
     always_listen: bool = True
     provider_mode: Literal["fake", "openai"] = "fake"
+    idle_close_seconds: float = Field(default=120, gt=0)
+    reconnect_seconds: float = Field(default=10, gt=0)
+    scheduler_interval_seconds: float = Field(default=1, gt=0)
     outbound_queue_size: int = Field(default=128, ge=4)
     camera_timeout_seconds: float = Field(default=20, gt=0)
 

@@ -50,6 +50,11 @@ class Desk:
         self.live = "idle"
         self.muted, self.camera, self.thinking = False, True, False
         self.present: bool | None = None
+        self.last_activity = self.clock()
+        self.last_open = float("-inf")
+        self.listen_paused = False
+        self.scheduler_task: asyncio.Task[None] | None = None
+        self.tick_lock = asyncio.Lock()
         self.last_voice = float("-inf")
         self.last_interrupt = float("-inf")
         self.photos: dict[str, asyncio.Future[str]] = {}
@@ -152,6 +157,10 @@ class Desk:
             await self._detach(peer)
 
     async def close(self) -> None:
+        if self.scheduler_task:
+            self.scheduler_task.cancel()
+            await asyncio.gather(self.scheduler_task, return_exceptions=True)
+            self.scheduler_task = None
         async with self._connections:
             if self.peer:
                 peer = self.peer
@@ -170,6 +179,7 @@ class Desk:
     async def start(self) -> None:
         if self.voice_task and not self.voice_task.done():
             return
+        self.last_open = self.last_activity = self.clock()
         self.generation += 1
         self.transcripts = Transcript()
         self.delegations.clear()
@@ -184,7 +194,7 @@ class Desk:
             if generation != self.generation:
                 return
             if isinstance(event, bytes):
-                self.last_voice = self.clock()
+                self.last_activity = self.last_voice = self.clock()
                 await self.send(event, generation)
             elif event["event"] == "started":
                 self.live = "open"
@@ -235,6 +245,7 @@ class Desk:
         await self.send(self.state())
 
     async def transcript(self, role: str, delta: str, start_ms: int = 0) -> None:
+        self.last_activity = self.clock()
         self.transcripts.add(role, delta, start_ms)
         now = self.clock()
         if role == "user" and delta.strip() and now - self.last_voice < 3:
@@ -265,8 +276,10 @@ class Desk:
             await self.send({"type": "error", "message": f"invalid or unknown message type {kind}"})
             return
         if message.type == "start":
+            self.listen_paused = False
             await self.start()
         elif message.type == "stop":
+            self.listen_paused = True
             await self.stop()
         elif message.type in ("mute", "unmute"):
             self.muted = message.type == "mute"
@@ -294,6 +307,8 @@ class Desk:
         elif isinstance(message, Say):
             text = message.text.strip()
             if text:
+                self.listen_paused = False
+                self.last_activity = self.clock()
                 await self.start()
                 self.transcripts.note("user", text)
                 await self.send({"type": "transcript", "role": "user", "delta": text})
@@ -339,7 +354,11 @@ class Desk:
             return
         self.brain_busy += 1
         await self.send(self.state())
-        tools = Tools(self, text, self.transcripts.previous_assistant())
+        tools = Tools(
+            self,
+            "" if text.startswith("[Desk event]") else text,
+            None if text.startswith("[Desk event]") else self.transcripts.previous_assistant(),
+        )
 
         async def progress(content: str, pending: list[str]) -> None:
             if generation != self.generation:
@@ -360,6 +379,7 @@ class Desk:
                     {"type": "error", "message": "brain turn failed; check provider configuration"}
                 )
         finally:
+            self.last_activity = self.clock()
             self.brain_busy -= 1
             if generation == self.generation:
                 await self.send(self.state())
@@ -373,3 +393,65 @@ class Desk:
                 "url": f"/p/{page['id']}?v={page['updatedAt']}",
             }
         )
+
+    def start_scheduler(self) -> None:
+        if self.scheduler_task is None or self.scheduler_task.done():
+            self.scheduler_task = asyncio.create_task(self.scheduler())
+
+    async def scheduler(self) -> None:
+        while True:
+            await asyncio.sleep(self.settings.scheduler_interval_seconds)
+            try:
+                await self.tick()
+            except Exception:
+                await self.send({"type": "error", "message": "scheduled desk update failed"})
+
+    async def tick(self) -> None:
+        async with self.tick_lock:
+            now = self.clock()
+            active = self.voice_task is not None and not self.voice_task.done()
+            busy = self.brain_busy > 0 or bool(self.brain_tasks) or self.thinking
+            if active and not busy:
+                end_reply = self.close_after_reply and now - self.last_activity > 3
+                idle = (
+                    not self.settings.always_listen
+                    and self.live == "open"
+                    and now - self.last_activity > self.settings.idle_close_seconds
+                )
+                if end_reply or idle:
+                    if end_reply:
+                        self.listen_paused = True
+                        self.close_after_reply = False
+                    await self.stop()
+                    active = False
+            if (
+                self.settings.always_listen
+                and self.peer
+                and not active
+                and not self.listen_paused
+                and now - self.last_open >= self.settings.reconnect_seconds
+            ):
+                await self.start()
+            if not self.peer:
+                return  # Keep offline reminders pending until a phone reconnects.
+            due = [c for c in self.store.desk()["checkins"] if c["dueAt"] <= self.store.clock()]
+            for checkin in due:
+                await self.store.mark_checkin_fired(checkin["id"])
+                await self.send({"type": "checkin", "about": checkin["about"]})
+                await self.send(self.store.desk())
+                await self.start()
+                self.last_activity = self.clock()
+                if self.voice:
+                    if self.brain:
+                        self.spawn_brain(
+                            self.ask_brain(
+                                self.voice,
+                                self.generation,
+                                "[Desk event] Check-in due: "
+                                + checkin["about"]
+                                + ". Check in briefly. This event is not user consent to save memories.",
+                                None,
+                            )
+                        )
+                    else:
+                        await self.voice.commentary("Quick check-in: " + checkin["about"])

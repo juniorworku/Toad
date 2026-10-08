@@ -2,7 +2,7 @@
 
 ## Objective and scope
 
-Build Toad as an independent AI desk companion with Desku's workflows, screen structure, hardware behavior and two operating modes. Keep native Kotlin/Jetpack Compose on Android. Replace the TypeScript/Node server with Python. Change the product name and character: Toad is an moss-green toad with cream eye discs, rounded ear tufts, a small beak and teal accents. No glasses or mustache. Keep the dark Nightlight interface outside the character.
+Build Toad as an independent AI desk companion with Desku's workflows, screen structure, hardware behavior and two operating modes. Keep native Kotlin/Jetpack Compose on Android. Replace the TypeScript/Node server with Python. Change the product name and character: Toad is a moss-green toad with raised eyes, a pale belly, broad feet, subtle spots and teal accents. Keep the dark Nightlight interface outside the character.
 
 Repository destination: `~/Documents/codes/Personal_Projects/Toad`. Android identity: `com.toad.companion`; Gradle project: `Toad`; Python package: `toad_server`. These are local project identifiers, not a claim to a registered brand, domain or store listing. Wake phrase becomes “Hey Toad”; recognizer variants must be measured with real speech rather than obtained by replacing strings.
 
