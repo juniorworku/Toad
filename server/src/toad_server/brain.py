@@ -38,8 +38,11 @@ class SDKGateway:
     async def turn(
         self, agent_id: str, session_id: str | None, text: str
     ) -> AsyncIterator[AsyncIterator[Json]]:
+        # Only opening the stream and posting the message mean "the session is gone"; a failure
+        # later in the turn (a tool result) fails the turn rather than replaying it elsewhere.
         try:
             if session_id:
+                # Subscribe before sending so the turn's first events aren't missed.
                 stream = await self.client.beta.agents.sessions.events.stream(session_id)
             else:
                 stream = await self.client.beta.agents.sessions.create(
@@ -49,39 +52,29 @@ class SDKGateway:
                     stream=True,
                     metadata={"app": "toad-server"},
                 )
-            async with stream:
-                if session_id:
-                    await self.submit(
-                        session_id,
-                        [
-                            {
-                                "type": "agent.session.input.message",
-                                "input": [
-                                    {
-                                        "role": "user",
-                                        "content": [{"type": "input_text", "text": text}],
-                                    }
-                                ],
-                            }
-                        ],
-                        str(uuid4()),
-                    )
-
-                async def events() -> AsyncIterator[Json]:
-                    async for event in stream:
-                        yield cast(Json, event.to_dict())
-
-                yield events()
         except (NotFoundError, ConflictError) as error:
             raise SessionGone("saved session is unavailable") from error
+        async with stream:
+            if session_id:
+                message = {
+                    "type": "agent.session.input.message",
+                    "input": [{"role": "user", "content": [{"type": "input_text", "text": text}]}],
+                }
+                try:
+                    await self.submit(session_id, [message], str(uuid4()))
+                except (NotFoundError, ConflictError) as error:
+                    raise SessionGone("saved session is unavailable") from error
+
+            async def events() -> AsyncIterator[Json]:
+                async for event in stream:
+                    yield cast(Json, event.to_dict())
+
+            yield events()
 
     async def submit(self, session_id: str, events: list[Json], key: str) -> None:
-        try:
-            await self.client.beta.agents.sessions.events.create(
-                session_id, events=events, idempotency_key=key
-            )
-        except (NotFoundError, ConflictError) as error:
-            raise SessionGone("saved session is unavailable") from error
+        await self.client.beta.agents.sessions.events.create(
+            session_id, events=events, idempotency_key=key
+        )
 
 
 class AgentBrain:
@@ -111,14 +104,16 @@ class AgentBrain:
 
     async def ask(self, text: str, tools: ToolRunner, progress: Progress | None = None) -> str:
         async with self.lock:
-            async with asyncio.timeout(self.timeout_seconds):
-                for attempt in range(2):
-                    try:
+            for attempt in range(2):
+                try:
+                    async with asyncio.timeout(self.timeout_seconds):
                         return await self._run(text, tools, progress)
-                    except SessionGone:
-                        if attempt or not self.store.snapshot()["agent"]["sessionId"]:
-                            raise
-                        await self.store.set_agent_link({"sessionId": None, "sessionHash": None})
+                except TimeoutError:
+                    raise TimeoutError("brain turn timed out") from None
+                except SessionGone:
+                    if attempt or not self.store.snapshot()["agent"]["sessionId"]:
+                        raise
+                    await self.store.set_agent_link({"sessionId": None, "sessionHash": None})
         raise RuntimeError("brain turn did not complete")
 
     async def _run(self, text: str, tools: ToolRunner, progress: Progress | None) -> str:
@@ -180,6 +175,10 @@ class AgentBrain:
                         return str(unsent or previous)
                     case "agent.session.failed":
                         raise SessionGone("saved session failed")
-                    case "agent.session.turn.failed" | "agent.session.turn.cancelled" | "error":
-                        raise RuntimeError("agent turn failed or was cancelled")
+                    case "agent.session.turn.failed" | "agent.session.turn.cancelled":
+                        turn = event.get("turn") or {}
+                        detail = turn.get("error") or turn.get("status")
+                        raise RuntimeError(f"{event['type']}: {json.dumps(detail)}")
+                    case "error":
+                        raise RuntimeError(f"agent stream error: {json.dumps(event)}")
         raise RuntimeError("agent stream closed before the turn finished")

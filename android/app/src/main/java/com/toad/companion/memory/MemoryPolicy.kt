@@ -17,7 +17,7 @@ object MemoryPolicy {
 
     private val saveRequests = listOf(
         // Imperatives at the start of the utterance: "remember...", "please note...", "save this".
-        Regex("^(hey (toad|toad|buddy)[,.!]?\\s*)?((please|ok|okay|and|also|oh|so|alright|right)[,]?\\s+)*" +
+        Regex("^(hey (toad|buddy)[,.!]?\\s*)?((please|ok|okay|and|also|oh|so|alright|right)[,]?\\s+)*" +
             "(remember|note|save|don'?t forget|do not forget|keep in mind|make a note|write (this|that|it) down|jot (this|that|it) down)\\b"),
         Regex("\\b(can|could|would|will) you (please )?(remember|note|save|keep in mind|make a note|write (this|that|it) down)\\b"),
         Regex("\\b(i want|i'd like|i would like|i need) you to (remember|note|save|keep in mind)\\b"),

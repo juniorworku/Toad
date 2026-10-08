@@ -131,7 +131,7 @@ async def test_timeout_closes_stream_and_releases_turn_lock(tmp_path: Path) -> N
     gateway.never_finish = True
     brain = AgentBrain(gateway, {"model": "gpt-6-astra"}, store, timeout_seconds=0.02)
     await brain.init()
-    with pytest.raises(TimeoutError):
+    with pytest.raises(TimeoutError, match="brain turn timed out"):
         await brain.ask("waiting", tools)
     assert gateway.active == 0 and gateway.closed == 1
     assert not brain.lock.locked()
@@ -183,3 +183,29 @@ async def test_sdk_wire_session_and_tool_submission(tmp_path: Path) -> None:
         await brain.init()
         assert await brain.ask("remember tea", tools) == "Saved through SDK."
     assert requests[-1].headers["Idempotency-Key"] == "tool-call-sdk"
+
+
+async def test_a_failed_tool_result_fails_the_turn_instead_of_replaying_it(tmp_path: Path) -> None:
+    """Replaying the turn in a new session would run add_todo or call_phone a second time."""
+    from openai import ConflictError
+
+    store = Store(tmp_path)
+    await store.load()
+    gateway = Gateway()
+    brain = AgentBrain(gateway, {"model": "gpt-6-astra"}, store)
+    await brain.init()
+    calls: list[str] = []
+
+    async def counting(name: str, args: Json) -> Json:
+        calls.append(name)
+        return {"ok": True, "output": "done"}
+
+    async def conflict(session_id: str, events: list[Json], key: str) -> None:
+        request = httpx2.Request("POST", "https://api.openai.com/v1/agents/sessions/s/events")
+        raise ConflictError("busy", response=httpx2.Response(409, request=request), body=None)
+
+    gateway.submit = conflict  # type: ignore[method-assign]
+    with pytest.raises(ConflictError):
+        await brain.ask("add it", counting)
+    assert calls == ["save_memory"], "the tool ran once; the turn was not replayed"
+    assert len(gateway.turns) == 1

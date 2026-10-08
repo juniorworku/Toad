@@ -24,3 +24,9 @@ build/
 android/app/src/main/assets/model-en-us/
 
 .tools/
+
+# Local runs: switch-script backups, demo screenshots, page previews, Claude Code local settings.
+backups/
+demo/run-*/
+*.preview.html
+.claude/settings.local.json

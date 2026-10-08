@@ -1,12 +1,14 @@
+import re
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    port: int = 8787
     device_token: str = ""
     data_dir: Path = Path("./data")
     always_listen: bool = True
@@ -27,3 +29,23 @@ class Settings(BaseSettings):
     time_zone: str = "Africa/Addis_Ababa"
     brain_timeout_seconds: float = Field(default=150, gt=0)
     delegation_settle_seconds: float = Field(default=0.4, ge=0)
+
+    # AgentPhone: with the key and OWNER_PHONE set, Toad phones the user when they're away.
+    agentphone_api_key: SecretStr = SecretStr("")
+    agentphone_number: str = ""
+    owner_phone: str = ""
+    away_call_after_seconds: float = Field(default=60, gt=0)
+    quiet_hours: Annotated[tuple[int, int] | None, NoDecode] = (22, 8)
+
+    # Composio (the user's apps). Off when the key is empty.
+    composio_api_key: SecretStr = SecretStr("")
+    composio_user_id: str = "toad-owner"
+
+    @field_validator("quiet_hours", mode="before")
+    @classmethod
+    def parse_hours(cls, value: object) -> object:
+        """`22-8` (start-end, 24h local); anything else turns quiet hours off."""
+        if isinstance(value, str):
+            match = re.fullmatch(r"(\d{1,2})-(\d{1,2})", value.strip())
+            return (int(match[1]), int(match[2])) if match else None
+        return value

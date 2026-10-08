@@ -34,6 +34,11 @@ class Store:
         self.clock = clock or (lambda: int(time.time() * 1000))
         self._state = empty_state()
         self._lock = asyncio.Lock()
+        self._listeners: list[Callable[[], None]] = []
+
+    def on_change(self, listener: Callable[[], None]) -> None:
+        """Called after every saved change (the desk pushes its snapshot to the phone)."""
+        self._listeners.append(listener)
 
     async def load(self) -> None:
         def read() -> Json:
@@ -56,14 +61,11 @@ class Store:
         return copy.deepcopy(self._state)
 
     def desk(self) -> Json:
-        state = self.snapshot()
         return {
             "type": "desk",
-            "memories": state["memories"],
-            "focus": state["focus"],
-            "checkins": sorted(
-                (c for c in state["checkins"] if not c.get("firedAt")), key=lambda c: c["dueAt"]
-            ),
+            "memories": self.memories(),
+            "focus": self.focus(),
+            "checkins": self.pending_checkins(),
         }
 
     async def _change(self, mutate: Callable[[Json], T]) -> T:
@@ -86,9 +88,43 @@ class Store:
             except asyncio.CancelledError:
                 await task  # finish the transaction before releasing its lock
                 self._state = state
+                self._changed()
                 raise
             self._state = state
+            self._changed()
             return copy.deepcopy(result)
+
+    def _changed(self) -> None:
+        for listener in self._listeners:
+            listener()
+
+    # Read helpers, newest state; all return copies.
+
+    def memories(self) -> list[Json]:
+        return copy.deepcopy(self._state["memories"])
+
+    def focus(self) -> Json | None:
+        focus: Json | None = copy.deepcopy(self._state["focus"])
+        return focus
+
+    def recent_focus(self, count: int = 5) -> list[Json]:
+        return copy.deepcopy(self._state["focusHistory"][-count:]) if count > 0 else []
+
+    def todos(self) -> list[Json]:
+        return copy.deepcopy(self._state["todos"])
+
+    def pending_checkins(self) -> list[Json]:
+        return sorted(
+            (copy.deepcopy(c) for c in self._state["checkins"] if not c.get("firedAt")),
+            key=lambda c: c["dueAt"],
+        )
+
+    def agent_link(self) -> Json:
+        return copy.deepcopy(self._state["agent"])
+
+    def today_page_id(self) -> str | None:
+        value = self._state["todayPageId"]
+        return str(value) if value else None
 
     async def add_memory(self, text: str) -> Json:
         clean = text.strip()[:500]

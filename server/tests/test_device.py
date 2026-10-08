@@ -60,7 +60,7 @@ def test_typed_turn_produces_transcripts_and_pcm(tmp_path: Path) -> None:
             socket.receive_json()
             socket.receive_json()
             socket.send_json({"type": "say", "text": " hello "})
-            until(socket, "transcript", role="user", delta="hello")
+            # A tap is context for the brain, not speech: it isn't echoed as a user caption.
             until(socket, "transcript", role="assistant", delta="[Fake provider] Received: hello")
             until(socket, "state", thinking=False)
             assert len(socket.receive_bytes()) == 4800

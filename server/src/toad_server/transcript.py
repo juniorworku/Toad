@@ -30,8 +30,10 @@ class Transcript:
         words = [t["text"].strip() for t in self.turns if t["role"] == "assistant"][-2:]
         return " ".join(words) if words else None
 
-    def recent_user(self) -> str:
-        return " ".join(t["text"].strip() for t in self.turns if t["role"] == "user")
+    def recent_user(self, count: int = 4) -> str:
+        """The user's last turns joined: a request often spans several ("call my friend" … "yes")."""
+        said = [t["text"].strip() for t in self.turns if t["role"] == "user"]
+        return " ".join(said[-count:])
 
     def recent(self, limit: int = 20) -> str:
         return "\n".join(

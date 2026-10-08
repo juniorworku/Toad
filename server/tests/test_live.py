@@ -109,3 +109,19 @@ def test_transcript_interleaving_and_consumed_user_request() -> None:
     transcript.note("user", "button press")
     assert transcript.take_user_request() == ""
     assert transcript.previous_assistant() == "One second."
+
+
+async def test_commands_are_never_dropped_when_mic_audio_backs_up() -> None:
+    """A stalled provider fills the queue with audio; speech, mute and close must still go out."""
+    from toad_server.live import MAX_AUDIO
+
+    voice = LiveVoice(Settings(device_token="t"), "instructions")
+    voice.started = True
+    for _ in range(MAX_AUDIO + 10):
+        await voice.append_audio(bytes(4800))
+    assert voice.commands.qsize() == MAX_AUDIO, "stale audio beyond the cap is dropped"
+    await voice.commentary("Here's your answer.", "d1")
+    await voice.mute(True)
+    await voice.close()  # no socket: returns without raising
+    kinds = [voice.commands.get_nowait()["type"] for _ in range(voice.commands.qsize())]
+    assert kinds[-2:] == ["session.commentary.append", "session.input_audio.mute"]

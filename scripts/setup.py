@@ -20,23 +20,16 @@ def main() -> None:
     executable = ROOT / ".venv/bin/python"
     if args.check:
         print("Python:", sys.version.split()[0])
-        print(
-            "Repository environment:", "present" if executable.exists() else "missing"
-        )
+        print("Repository environment:", "present" if executable.exists() else "missing")
         for command in ("java", "adb"):
             local_tool = (
                 ROOT
                 / ".tools"
-                / (
-                    "jdk-17/bin/java"
-                    if command == "java"
-                    else "android-sdk/platform-tools/adb"
-                )
+                / ("jdk-17/bin/java" if command == "java" else "android-sdk/platform-tools/adb")
             )
             print(
                 command + ":",
-                shutil.which(command)
-                or (str(local_tool) if local_tool.exists() else "missing"),
+                shutil.which(command) or (str(local_tool) if local_tool.exists() else "missing"),
             )
         print("Private .env:", "present" if (ROOT / ".env").exists() else "missing")
         return
@@ -77,9 +70,7 @@ def main() -> None:
                     "DEVICE_TOKEN=" + secrets.token_urlsafe(32) + "\n",
                 )
             )
-        print(
-            "Created private .env with a new device token. Existing files are preserved."
-        )
+        print("Created private .env with a new device token. Existing files are preserved.")
     except FileExistsError:
         print("Preserved existing .env.")
     print(

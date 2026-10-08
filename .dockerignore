@@ -1,0 +1,22 @@
+# Only the engine and the agent definition go into the image. Keys stay out: they're Fly secrets.
+*
+!server/requirements.lock
+!server/pyproject.toml
+!server/src/
+!agent/toad-agent.json
+# Never in the image, even inside the paths above.
+**/.env
+**/.env.*
+**/data
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+# Already excluded by "*" above; listed so the intent is explicit.
+.venv
+.tools
+android
+backups
+.git

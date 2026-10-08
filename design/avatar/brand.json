@@ -4,5 +4,5 @@
   "python_package": "toad_server",
   "wake_phrase": "Hey Toad",
   "avatar": "moss-green toad",
-  "status": "design reference; native animated implementation pending"
+  "status": "native animation in android/app/src/main/java/com/toad/companion/ui/Toad.kt; not yet seen on a device"
 }

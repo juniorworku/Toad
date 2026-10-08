@@ -1,55 +1,137 @@
 # Toad
 
-A Python-server and Kotlin Android rebuild of the Desku AI desk companion, with a new animated moss-green toad.
+> Your old phone already has eyes, ears and a voice. Toad gives it a brain and a useful job.
 
-## Implemented
+Toad turns a spare Android phone (Android 8.0+) into a desk companion: a moss-green toad with raised eyes and a wide smile, sitting on a stand next to you. You talk to it, show it things through the camera, and ask it to remember what matters. It helps you pick one thing to work on, keeps your to-do list, and checks in when the focus timer ends. If you're away from the desk, it can phone you.
 
-- Kotlin/Compose application migrated and rebranded as `com.toad.companion`, retaining local Claude mode, hardware, screens, kiosk behavior and JVM tests.
-- Native toad drawing and launcher icon; six expressions, blinking, eye-follow and voice-driven mouth animation.
-- Python FastAPI engine: authenticated device WebSocket, ordered state/JSON/binary transport, microphone mute, stop/restart, replacement/reconnect cleanup, camera response correlation, memory deletion and presence tracking.
-- Atomic JSON store for memories, focus/history, todos, check-ins, hosted-agent references and Today page ID; server-side memory consent policy.
-- GPT-Live adapter, saved-agent SDK integration, persisted pages and desk tools; explicit diagnostic fake and local smoke script.
+Toad is a rebuild of the open-source [Desku](../Desku) with the server rewritten in **Python**. The Android app is Desku's Kotlin/Compose app, rebranded with a new animated character; the engine is a FastAPI port of Desku's Node engine that keeps the same architecture, device protocol, tools and behavior.
 
-Python now includes opt-in GPT-Live speech transport and a saved-agent reasoning adapter with tool execution, session recovery, camera input, memory consent, tasks, and Today/generated pages. Fake mode remains the default: microphone audio is consumed without recognition; typed input produces a diagnostic transcript and tone. Live account access and Android device behavior remain unverified. Scheduled check-ins, voice reconnection and idle-close policies are implemented. Dashboard, presence welcomes, apps and phone calls remain pending.
+## How it fits together
 
-## Run the Python engine
-
-From the repository root, run `python3 scripts/setup.py` to install the locked Python environment and create a private `.env` with a random device token. Existing `.env` files are preserved. Use `python3 scripts/setup.py --check` to inspect prerequisites.
-
-Manual setup:
-
-```bash
-.venv/bin/python -m pip install -r server/requirements.lock
-.venv/bin/python -m pip install --no-deps -e './server[dev]'
-export DEVICE_TOKEN="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-export PROVIDER_MODE=fake
-.venv/bin/python -m uvicorn toad_server.main:app --host 127.0.0.1 --port 8787 --no-access-log
+```
+ Android phone (android/)                Python engine (server/)                 Providers
+ ┌──────────────────────┐  WS /device   ┌──────────────────────────┐  WS   ┌──────────────────────┐
+ │ mic · speaker · cam  │ ◄───────────► │ desk: voice, delegation, │ ◄───► │ GPT-Live (voice)     │
+ │ toad face · screens  │  PCM16 24kHz  │ check-ins, presence,     │       ├──────────────────────┤
+ │ wake word · kiosk    │  + JSON       │ tools, pages, calls      │ ◄───► │ Agents API "Toad"    │
+ └──────────────────────┘               └──────────────────────────┘       │ (brain + web search) │
+                                           │ agent page, test client       ├──────────────────────┤
+                                           │ data/toad.json, data/pages    │ Composio · AgentPhone│
+                                                                           └──────────────────────┘
 ```
 
-For setup from scratch, first run `python3 -m venv .venv`. Reuse the same newly generated device token in Android settings; generating a new value every start requires updating the phone. `.env` can supply configuration instead; keep it out of Git. Disable access logs because the compatibility WebSocket URL carries its token in the query string. No original secrets/account identifiers were imported.
+- **Engine mode** (Settings → engine address set): the phone streams the mic up and plays Toad's voice back, answers camera requests, and shows the engine's memories, focus timer, check-ins, pages and app links. Talk, the wake phrase and check-ins open the voice session; screen buttons go to the brain as taps.
+- **On-phone mode** (address blank): the original Desku behavior, with Claude running on the phone and six local tools.
+- **The brain** is one saved Agents API agent, defined in [`agent/toad-agent.json`](agent/toad-agent.json): Toad's instructions, hosted web search and 12 desk tools (`get_desk_status`, `set_focus`, `save_memory`, `delete_memory`, `look_through_camera`, `call_phone`, `control_desk`, `show_page`, `add_todo`, `complete_todo`, `remove_todo`, `show_today`), plus your connected apps through Composio. [`agent/toad_agent.py`](agent/README.md) drives the same agent from a terminal.
+
+The phone app follows design 1a "Nightlight": six screens that change with what Toad is doing (idle, listening, speaking, camera read, timer check-in, memories & privacy), and Toad's face shows the state (dozing, listening, thinking, talking, muted, peeking) instead of a spinner.
+
+## Quick start
+
+Needs Python 3.12+. From the repository root:
 
 ```bash
-.venv/bin/python -m pytest server/tests -q
-.venv/bin/python -m ruff check server/src server/tests scripts/smoke_local.py
-.venv/bin/python -m mypy --strict server/src
-.venv/bin/python scripts/smoke_local.py
+python3 scripts/setup.py                  # .venv, locked deps, private .env with a new DEVICE_TOKEN
+.venv/bin/python -m uvicorn toad_server.main:app --host 0.0.0.0 --port 8787 --no-access-log
 ```
 
-For live mode, set `PROVIDER_MODE=openai`, `OPENAI_API_KEY`, and optionally `OPENAI_PROJECT` in your private `.env`. The server creates or updates the saved agent and persists its session reference. This mode makes paid API requests when enabled. See `server/.env.example` for the documented endpoint/model defaults.
+Open `http://localhost:8787/agent` (agent page) or `http://localhost:8787/` (browser test client). The default `PROVIDER_MODE=fake` needs no keys: it returns labeled diagnostic text and a test tone, not AI. For the real Toad, set `PROVIDER_MODE=openai` and `OPENAI_API_KEY` in `.env` (paid; see [server/README.md](server/README.md)).
 
-## Android
+Phone over USB (JDK 17 and the Android SDK are installed repo-locally by the toolchain setup in [android/README.md](android/README.md)):
 
-See [Android setup](android/README.md). Build from `android/` with JDK 17 and Android SDK 36. Connect a USB phone with `adb reverse tcp:8787 tcp:8787`, then set the engine address to `ws://127.0.0.1:8787` and enter the token. Leave the engine address blank for the original phone-only Claude behavior.
+```bash
+source scripts/android-env.sh
+(cd android && ./gradlew :app:installDebug)
+adb reverse tcp:8787 tcp:8787
+```
 
-Android validation passes: debug APK built, 13 JVM tests passed, and lint has zero errors with 33 remaining warnings. Java and adb are available through `source scripts/android-env.sh`; rerun with `scripts/validate-android.sh`. Physical-device testing is deferred. See [validation report](docs/ANDROID_VALIDATION.md).
+In the app: long-press the clock → Settings → engine `ws://127.0.0.1:8787` and the `DEVICE_TOKEN` from `.env`. On Wi-Fi use `ws://<laptop LAN IP>:8787` (debug builds allow `ws://`; release builds need `wss://`).
 
-## Rebuild references
+## What it does, and how it was checked
 
-- [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
-- [Current status](docs/STATUS.md)
-- [Device protocol](docs/DEVICE_PROTOCOL.md)
-- [Provider feasibility](docs/PROVIDER_COMPATIBILITY.md)
-- [Baseline review](docs/BASELINE_REVIEW.md)
-- [Avatar](design/avatar/README.md)
+"Tested" means automated tests that run with fakes, no paid services and no phone. "Live" means checked against the real providers or a real phone, which is the [live testing steps](docs/LIVE_TESTING_STEPS.md) still to be run for Toad.
 
-Baseline: Desku commit `2aea122`. MIT attribution is preserved in [LICENSE](LICENSE). GitHub target: `juniorworku/Toad`. No provider provisioning or deployment has been performed.
+| Feature | Status | How it was verified |
+|---|---|---|
+| Voice conversation through GPT-Live, with delegation to the brain | Built | Engine tests with a fake GPT-Live and brain; GPT-Live client tested against a loopback WebSocket provider. **Not yet live.** |
+| Brain: saved agent, persistent session, tools, recovery | Built | The real OpenAI Python SDK against a mock HTTP/SSE transport. **Not yet live.** |
+| Toad speaks first: check-ins when the timer ends | Built | Tests: due, late, offline-then-reconnect, once only |
+| Memory only when asked, enforced in code | Built | Policy tests; the tool refuses unasked saves, including from call transcripts |
+| Camera: instant photo on request, honest when off | Built | Engine tests (round trip, switched off, timeout, disconnect); phone side ported unchanged |
+| To-dos and the live Today screen | Built | Tests: add, check off, remove, same page updated in place, escaping |
+| Pages on the desk screen (sandboxed, UI kit) | Built | Tests: storage limits, CSP, kit injection, versioned links, delete auth |
+| Presence: Today on arrival, welcome back after 10+ minutes | Built | Tests with scripted presence and a controlled clock |
+| Desk controls (camera, mute, memories, end conversation) | Built | Tests, including end-after-goodbye |
+| Barge-in, mute, idle close, always-listening reopen, Stop | Built | Tests with a controlled clock |
+| Apps through Composio (Python SDK) | Built | Tests against a fake SDK pinned to composio 0.25's shapes. **Not yet live.** |
+| Phone calls through AgentPhone (away, on request, a friend) | Built | Tests: offline, no reply, camera absence, quiet hours, startup grace, consent, errors; HTTP client against a mock API. **Not yet live.** |
+| Agent page and browser test client | Built | HTTP tests and a local run through the USB bridge |
+| Terminal agent client | Built | 41 tests against mocked API responses. **Not yet live.** |
+| Android app (both modes, kiosk, wake word, toad character) | Built | 13 JVM tests, debug APK and lint (zero errors). **Not yet on a real phone.** |
+| "Hey Toad" wake phrase | Built | Grammar ported; `scripts/check-wake-word.sh` checks synthetic voices. **Not yet with a real mic.** |
+
+Run the whole offline suite with `.claude/skills/toad-engine/scripts/check.sh` and `scripts/validate-android.sh`.
+
+## The demo
+
+1. "Hey Toad… help me plan my afternoon." It offers to look at your list.
+2. You hold up a handwritten to-do list; it reads it and suggests one item.
+3. You choose together; it sets a 25-minute focus and puts it on the Today screen.
+4. "Remember that I'm working on this." The memory appears on screen.
+5. The timer ends: Toad speaks first and asks how it went. If you've left the desk, it calls you.
+6. Later, in a new conversation: "What was I supposed to focus on?" It answers from memory.
+
+## Privacy model
+
+| What | Where it goes | Kept? |
+|---|---|---|
+| Background audio while waiting for "Hey Toad" | Processed in memory on the phone by Vosk, then dropped | Never |
+| What you say in a voice session | Streamed to GPT-Live through the engine (`store: false`); the engine keeps a short transcript in memory for the brain | Not written to disk |
+| Camera | On-phone face detection about once a second, frames dropped; a photo is taken only when Toad needs to look, and goes to the brain | Frames never; a photo only in the brain session |
+| Memories, focus, to-dos, check-ins | `data/toad.json` on the engine | Until you delete them |
+| Pages | `data/pages/` on the engine, newest 50 | Until replaced or deleted |
+| Keys (OpenAI, Composio, AgentPhone) | The engine's `.env` only; never on the phone | Until you replace them |
+
+Muted means nothing is listening, not even for the wake phrase.
+
+## Locked kiosk
+
+Toad can lock a phone so it runs only Toad: no home screen, status bar or lock screen; it boots into Toad and keeps the screen on while charging. On a phone with no accounts, install the app and run `adb shell dpm set-device-owner com.toad.companion/.kiosk.ToadAdmin`. To get out, hold the top of the screen for 5 seconds and enter `toad.kioskPin` from `android/local.properties`. If the PIN is lost, the only way out is a factory reset.
+
+## Repository
+
+```
+android/         Kotlin/Compose app (com.toad.companion): screens, toad character, voice, camera, kiosk
+server/          Python engine (toad_server), tests, live-check scripts         → server/README.md
+agent/           the saved agent definition and the terminal client             → agent/README.md
+scripts/         setup, smoke test, Android validation, start/switch/demo tools → scripts/README.md
+design/avatar/   the toad character reference
+demo/            the handwritten to-do photo used by the demo and smoke tests
+docs/            live testing steps, parity with Desku, protocol, status, decisions
+.claude/skills/  Claude Code skills for this repo (below)
+Dockerfile, fly.toml   one-machine cloud deployment
+```
+
+## Claude Code skills
+
+`.claude/skills/` holds skills that Claude Code loads in this repo:
+
+| Skill | For |
+|---|---|
+| `toad-engine` | running, testing and debugging the Python engine; `scripts/check.sh` runs every offline check |
+| `toad-agent` | changing the agent's instructions or tools; `scripts/check_agent.py` proves every tool is implemented |
+| `toad-android` | building, installing and driving the phone app, kiosk and wake phrase |
+| `toad-apps` | Toad's Composio integration in Python |
+| `toad-pages` | writing and previewing desk pages with the UI kit |
+| `composio` | the upstream Composio skill, vendored from Desku (`.agents/skills/composio`, pinned in `skills-lock.json`) |
+
+## Docs
+
+- [Live testing steps](docs/LIVE_TESTING_STEPS.md): the remaining acceptance run with real providers and a real phone
+- [Parity with Desku](docs/PARITY.md): every Desku feature and where it lives in Toad
+- [Engine](server/README.md) · [Device protocol](docs/DEVICE_PROTOCOL.md) · [Status](docs/STATUS.md) · [Decisions](docs/DECISIONS.md)
+- History: [implementation plan](docs/IMPLEMENTATION_PLAN.md), [baseline review](docs/BASELINE_REVIEW.md), [workflow](docs/WORKFLOW.md), [Android validation](docs/ANDROID_VALIDATION.md)
+
+## License
+
+MIT, with Desku's original notice preserved. See [LICENSE](LICENSE).

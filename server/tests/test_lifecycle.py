@@ -69,7 +69,7 @@ async def test_always_listen_recovers_but_stop_pauses(tmp_path: Path) -> None:
         await desk.close()
 
 
-async def test_end_after_reply_waits_then_stays_paused(tmp_path: Path) -> None:
+async def test_end_after_reply_closes_then_always_listening_resumes(tmp_path: Path) -> None:
     desk, _, clock = await make(tmp_path, True)
     try:
         await asyncio.sleep(0)
@@ -79,9 +79,10 @@ async def test_end_after_reply_waits_then_stays_paused(tmp_path: Path) -> None:
         assert desk.live == "open"
         clock[0] += 2
         await desk.tick()
+        assert desk.live == "idle" and not desk.listen_paused, "closed after the goodbye"
         clock[0] += 20
         await desk.tick()
-        assert desk.live == "idle" and desk.listen_paused
+        assert desk.voice_task is not None, "like Desku, always-listening reopens later"
     finally:
         await desk.close()
 

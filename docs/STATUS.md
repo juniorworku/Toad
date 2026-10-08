@@ -1,33 +1,36 @@
-# Rebuild status
+# Status
 
-## Implemented
+Updated October 8, 2026. Feature-by-feature mapping: [PARITY.md](PARITY.md).
 
-- Kotlin Android app rebranded to `com.toad.companion`, with native animated moss-green toad and matching launcher icon. Local Claude mode and original 13 JVM test declarations are retained.
-- Python FastAPI device transport, authentication, bounded output, cancellation-safe Stop, microphone mute, camera capture and atomic state persistence.
-- Opt-in GPT-Live voice adapter: startup handshake, PCM24k audio, transcript deltas, client delegation and commentary/thinking responses.
-- Saved-agent Python SDK adapter: agent definition synchronization, persistent sessions, serialized turns, timeouts, session recovery and idempotent event submission.
-- Desk tools: status, consent-gated memory save/delete, focus, camera, controls, task add/complete/remove and Today/generated pages. Phone calls explicitly report unavailable.
-- Lifecycle scheduler: bounded-rate voice reconnection, idle closing, end-after-reply closing, explicit Stop pause and once-only persisted check-ins. Offline reminders wait for a phone.
-- Reproducible Python setup script creates a private configuration without overwriting existing values.
-- Persisted HTML pages with bounded size/retention, kit injection, CSP and authenticated deletion. Diagnostic fake remains the default.
+## Done
 
-## Validation
+- **Python engine at parity with Desku's engine.** Device socket and protocol, GPT-Live voice with client delegation, the saved "Toad" agent with all 12 desk tools plus web search, check-ins where Toad speaks first, presence (Today on arrival, welcome back), the to-do list and Today screen, pages with the UI kit, desk controls, barge-in, mute, idle close, always-listening, Composio apps, AgentPhone away calls and calls on request, the agent page and the browser test client.
+- **Android app** ported from Desku and rebranded (`com.toad.companion`, moss-green toad, "Hey Toad"), both engine and on-phone modes, kiosk.
+- **Agent:** `agent/toad-agent.json` and the terminal client `agent/toad_agent.py`.
+- **Operating tools:** setup, local smoke test, start/switch/demo/wake-word/avatar scripts, live-check scripts in `server/scripts/`, Docker and Fly deployment files.
+- **Claude Code skills:** `toad-engine`, `toad-agent`, `toad-android`, `toad-apps`, `toad-pages`, and the vendored `composio` skill.
 
-- **49 Python tests pass**, including mock SDK HTTP/SSE tool actions and real loopback voice-provider WebSocket exchange.
-- Strict mypy and Ruff lint/format checks pass. Dependency versions are locked.
-- Local fake-mode HTTP/device smoke passes; Android XML and avatar SVG parse successfully.
-- Java 17, adb and Android SDK 36 installed. Debug APK builds; **13 Android JVM tests pass**; lint passes with **zero errors and 33 warnings**. APK signing and package identity verified. Device audio, wake phrase and avatar rendering remain unverified; physical-device testing is deferred by request.
-- No live AI calls, original secrets, or private state imported. GitHub target is `juniorworku/Toad`; deployment has not been performed.
+## Verified (offline, October 8, 2026)
 
-## Remaining parity work
+- `.claude/skills/toad-engine/scripts/check.sh`: **110 server tests** and **41 agent CLI tests** pass; Ruff lint and format, strict mypy (server, agent CLI, server scripts) and the agent/tool parity check pass. All 42 of Desku's server test cases are ported.
+- Protocol conformance against the Kotlin source: every message type the engine sends is handled by `EngineLink.kt`, and every type the app sends is accepted by the engine.
+- `scripts/validate-android.sh`: **13 JVM tests** pass, the debug APK builds, lint has zero errors.
+- A local run of the engine (fake mode) behind `server/scripts/usb_bridge.py`, driven by `server/scripts/fake_phone.py` and a raw WebSocket client: HTTP routes, bearer auth, localhost token fill-in, the device socket through the bridge, a screen tap round trip, audio resampling, and the token redacted from the server log.
+- `scripts/smoke_local.py` passes.
 
-1. Presence welcome-back behavior and optional away/no-reply calling. Current check-ins wait offline because phone calls are not configured.
-2. Browser client/dashboard and optional Composio/AgentPhone integrations.
-3. Physical-device audio/avatar/wake/kiosk acceptance and remaining Android lint warnings.
-4. Live provider account verification and deployment/operating scripts.
+## Not verified yet
 
-Android validation details: [ANDROID_VALIDATION.md](ANDROID_VALIDATION.md).
+Nothing below has run, because there are no provider keys in this environment and no phone attached. Steps: [LIVE_TESTING_STEPS.md](LIVE_TESTING_STEPS.md).
 
-Workflow and batch history: [WORKFLOW.md](WORKFLOW.md).
+1. Any live OpenAI call: saved-agent sync, a brain turn, a GPT-Live voice session.
+2. The real phone against the Python engine: audio quality, echo, camera, presence, pages, the toad character on screen.
+3. "Hey Toad" with a real microphone (the grammar has one variant and is unmeasured).
+4. Composio with a connected app; AgentPhone calls; the Fly deployment and the switch scripts.
+5. `scripts/check-wake-word.sh` (needs the Vosk model and espeak-ng on this host).
 
-See [implementation plan](IMPLEMENTATION_PLAN.md) and [provider compatibility](PROVIDER_COMPATIBILITY.md).
+## Known gaps carried over from Desku
+
+- The "ask before writing to an app" rule is in the agent instructions only, not enforced in code.
+- No ambient listening; Toad hears you only in an open voice session.
+- Interrupting by voice relies on GPT-Live; queued phone audio is dropped on `interrupt`.
+- Release signing and APK size (debug APK about 77 MB, R8 off).

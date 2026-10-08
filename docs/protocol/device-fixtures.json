@@ -52,9 +52,25 @@
     },
     {
       "type": "desk",
-      "memories": [],
-      "focus": null,
-      "checkins": []
+      "memories": [
+        {
+          "id": "m1",
+          "text": "The grant is due Friday at noon.",
+          "createdAt": 1759687200000
+        }
+      ],
+      "focus": {
+        "task": "grant intro",
+        "startedAt": 1759687200000
+      },
+      "checkins": [
+        {
+          "id": "c1a2b3c4d5e6f7a8b",
+          "dueAt": 1759688700000,
+          "about": "Focus check-in: grant intro",
+          "createdAt": 1759687200000
+        }
+      ]
     },
     {
       "type": "transcript",
@@ -63,8 +79,31 @@
     },
     {
       "type": "capture",
-      "requestId": "synthetic",
+      "requestId": "p1a2b3c4d5e6f",
       "countdownSeconds": 0
+    },
+    {
+      "type": "checkin",
+      "about": "Focus check-in: grant intro"
+    },
+    {
+      "type": "page",
+      "id": "AAAAAAAAAAAAAAAAAAAAAA",
+      "title": "Today",
+      "url": "/p/AAAAAAAAAAAAAAAAAAAAAA?v=1759687200000"
+    },
+    {
+      "type": "link",
+      "url": "https://connect.composio.dev/link/lk_synthetic",
+      "label": "Connect app"
+    },
+    {
+      "type": "calling",
+      "about": "Focus check-in: grant intro"
+    },
+    {
+      "type": "control",
+      "action": "mute_mic"
     },
     {
       "type": "interrupt"

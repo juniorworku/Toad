@@ -39,8 +39,9 @@ async def test_memory_tool_gate_and_state_snapshot(tmp_path: Path) -> None:
 async def test_tasks_update_stable_today_page_and_escape_html(tmp_path: Path) -> None:
     store = Store(tmp_path)
     await store.load()
-    desk = Desk(Settings(device_token="test", data_dir=tmp_path), store)
+    desk = Desk(Settings(device_token="test", data_dir=tmp_path, always_listen=False), store)
     await desk.pages.load()
+    await desk.attach(cast(WebSocket, Socket()))  # the Today screen only renders for a phone
     tool = Tools(desk, "", None)
     assert (await tool("add_todo", {"text": "<script>bad</script>"}))["ok"]
     identifier = store.snapshot()["todayPageId"]
@@ -49,6 +50,7 @@ async def test_tasks_update_stable_today_page_and_escape_html(tmp_path: Path) ->
     html = await desk.pages.html(identifier)
     assert html and "&lt;script&gt;" in html and "<script>bad</script>" not in html
     assert len(desk.pages.listing()) == 1
+    await desk.close()
 
 
 @pytest.mark.asyncio
@@ -75,7 +77,7 @@ def test_page_http_csp_and_delete_auth(tmp_path: Path) -> None:
         assert response.status_code == 200
         assert "sandbox" in response.headers["Content-Security-Policy"]
         assert client.delete("/api/pages/" + page["id"]).status_code == 401
-        assert client.delete(
-            "/api/pages/" + page["id"], headers={"Authorization": "Bearer test"}
-        ).json() == {"deleted": True}
+        auth = {"Authorization": "Bearer test"}
+        assert client.delete("/api/pages/" + page["id"], headers=auth).status_code == 204
+        assert client.delete("/api/pages/" + page["id"], headers=auth).status_code == 404
         assert client.get("/p/" + page["id"]).status_code == 404

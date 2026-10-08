@@ -16,6 +16,7 @@ dependencies = [
   "pydantic-settings>=2.4,<3",
   "httpx>=0.27,<1",
   "websockets>=13,<16",
+  "composio>=0.25,<0.26",
 ]
 
 [project.optional-dependencies]
@@ -40,4 +41,4 @@ python_version = "3.12"
 strict = true
 
 [tool.setuptools.package-data]
-toad_server = ["assets/*.css", "assets/*.js"]
+toad_server = ["assets/*.css", "assets/*.js", "public/*.html", "py.typed"]

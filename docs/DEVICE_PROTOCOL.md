@@ -1,27 +1,53 @@
-# Device protocol: implemented subset
+# Device protocol
 
-Baseline: Desku `2aea122`, `EngineLink.kt` and `Desk.ts`. Kotlin and Python use native WebSockets, not Socket.IO.
+The WebSocket contract between the phone (`android/…/engine/EngineLink.kt`) and the engine (`server/src/toad_server/desk.py`). It is Desku's protocol unchanged (baseline `2aea122`): the Kotlin client was ported without protocol edits, so any change here must change both sides. Synthetic examples of every message are in [protocol/device-fixtures.json](protocol/device-fixtures.json).
 
-Connect to `/device?token=<DEVICE_TOKEN>`. Invalid tokens receive HTTP 401 when the ASGI server supports denial responses (otherwise close 1008). One device is active; a newer authenticated connection closes the older one. Token is compared in constant time. Keep the configured key out of logs.
+## Connection
 
-Binary frames are raw mono PCM16 little-endian at 24 kHz. Nominal 100 ms frames contain 4,800 bytes. There is no WAV header. The engine accepts variable even-length frames. It rejects odd lengths. Microphone audio is dropped when muted, stopped or not yet open.
+`ws(s)://HOST:8787/device?token=<DEVICE_TOKEN>`, native WebSocket (not Socket.IO).
 
-Implemented device JSON:
+- The token is compared in constant time. A wrong token gets HTTP 401 on the upgrade (close 1008 on servers without denial responses).
+- One phone at a time: a newer authenticated connection closes the older one with code 4000.
+- On connect the engine sends `state` and `desk`, then (in `PROVIDER_MODE=fake`) an `error` saying the AI isn't connected. With `ALWAYS_LISTEN=1` it opens a voice session at once.
+- If the phone stops reading and 128 frames are queued, the engine closes it with 1013.
+- The engine's log redacts the token from the socket path.
 
-| Type | Fields |
-| --- | --- |
-| `start`, `stop`, `mute`, `unmute`, `forget_all` | none |
-| `camera` | `enabled`: boolean |
-| `presence` | `present`: boolean |
-| `say` | `text`: string |
-| `forget` | `id`: string |
-| `photo` | `requestId`, `image` (base64 JPEG) |
-| `photo_error` | `requestId`, `reason` |
+## Audio
 
-Implemented outbound JSON: `state`, `desk`, `transcript`, `capture`, `interrupt`, `error`. `state` contains `live` (`idle`/`connecting`/`open`), `muted`, `camera`, `thinking`. `desk` contains `memories`, `focus`, `checkins`, matching Kotlin's existing parser. Stored memory fields remain `id`, `text`, `createdAt` (epoch milliseconds).
+Binary frames in both directions: raw mono PCM16 little-endian at 24 kHz, no header, nominally 100 ms (4,800 bytes). Odd-length frames are rejected with an `error`. Mic audio is dropped while muted, before the voice session has started, and when no session is open. When a session stops, audio queued for the old session is discarded and `interrupt` tells the phone to flush its playback.
 
-Strict boolean validation is an intentional protocol boundary improvement over JavaScript coercion; valid Android messages are unchanged. Unknown/malformed messages produce `error`. Stop invalidates queued session audio and emits `interrupt` to flush Android playback. Only the current session generation can emit PCM.
+## Phone → engine (JSON)
 
-`PROVIDER_MODE=fake` is currently the only supported mode. It counts incoming audio bytes without recognizing speech. `say` returns a labeled diagnostic transcript and a quiet 300 ms tone in three binary frames. No model, paid service, tool execution or actual spoken reply is implied. Camera requests are callable through the coordinator and tested; the diagnostic provider does not invoke camera tools automatically.
+| Type | Fields | Meaning |
+| --- | --- | --- |
+| `start` / `stop` | | Open the voice session (Talk, wake phrase) / end it. Stop also pauses always-listening until the next start. |
+| `mute` / `unmute` | | Mic privacy; the engine drops audio and tells GPT-Live |
+| `camera` | `enabled`: boolean | Camera privacy switch; when off the camera tool fails honestly |
+| `photo` | `requestId`, `image` (base64 JPEG) | Reply to `capture` |
+| `photo_error` | `requestId`, `reason` | The phone couldn't take the photo |
+| `forget` | `id` | Delete one memory |
+| `forget_all` | | Delete every memory |
+| `say` | `text` | A tap on a screen button; the brain answers it out loud as `[Tapped on the desk screen] text` |
+| `presence` | `present`: boolean | On-device face detection sees (or stops seeing) someone |
 
-Pending: `checkin`, `link`, `calling`, `control`, `page`, hosted-brain delegation, voice reconnection/idle scheduling and all provider adapters. Presence is tracked but does not yet trigger greetings/check-ins. Focus/check-in persistence is implemented; scheduler and model tool wiring remain pending.
+Booleans must be JSON booleans (stricter than Desku's JavaScript coercion; the Android app already sends booleans). Malformed JSON or an unknown type gets an `error`.
+
+## Engine → phone (JSON)
+
+| Type | Fields | Meaning |
+| --- | --- | --- |
+| `state` | `live` (`idle`/`connecting`/`open`), `muted`, `camera`, `thinking` | Sent on every change |
+| `transcript` | `role` (`user`/`assistant`), `delta` | Live captions for both sides |
+| `desk` | `memories[{id,text,createdAt}]`, `focus{task,startedAt}` or null, `checkins[{id,dueAt,about,createdAt}]` | On connect and after every stored change; times are epoch milliseconds |
+| `capture` | `requestId`, `countdownSeconds` (0) | Take one photo now (the camera is always on); 20 s timeout |
+| `checkin` | `about` | A check-in is starting: wake the screen |
+| `page` | `id`, `title`, `url` | Open the relative `url` (`/p/<id>?v=<updatedAt>`; the version makes the phone reload an updated page) |
+| `link` | `url`, `label` | An app Connect Link for the user to open |
+| `calling` | `about` | Toad is phoning the user, or someone for them |
+| `control` | `action` | `camera_on`, `camera_off`, `close_camera`, `mute_mic`, `show_memories`, `hide_memories`, `end_conversation` |
+| `interrupt` | | Drop queued speech (barge-in within 3 s of Toad's audio, at most once a second; or the session stopped) |
+| `error` | `message` | Shown to the user (`voice: …`, `brain: …`, `phone call: …`) |
+
+## Fake provider
+
+`PROVIDER_MODE=fake` counts incoming audio without recognizing it. A `say` gets a labeled transcript `[Fake provider] Received: <text>` and a 300 ms test tone in three binary frames. No model, paid service or real reply is involved.

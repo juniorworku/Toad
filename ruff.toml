@@ -1,0 +1,6 @@
+# Lint/format settings for agent/ and scripts/ (server/ uses server/pyproject.toml, kept identical).
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I"]

@@ -5,6 +5,7 @@ import json
 import re
 import secrets
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +31,8 @@ PAGE_HEADERS = {
 
 
 class Pages:
-    def __init__(self, data_dir: Path) -> None:
+    def __init__(self, data_dir: Path, clock: Callable[[], int] | None = None) -> None:
+        self.clock = clock or (lambda: int(time.time() * 1000))
         self.directory = data_dir / "pages"
         self.index = self.directory / "index.json"
         self.items: list[dict[str, Any]] = []
@@ -74,8 +76,8 @@ class Pages:
         async with self.lock:
             existing = next((p for p in self.items if p["id"] == identifier), None)
             if identifier and not existing:
-                raise ValueError("no page with that id")
-            now = int(time.time() * 1000)
+                raise ValueError(f"no page with id {identifier}")
+            now = self.clock()
             page: dict[str, Any] = (
                 dict(existing) if existing else {"id": secrets.token_urlsafe(16), "createdAt": now}
             )
@@ -126,6 +128,10 @@ class Pages:
 def with_kit(html: str) -> str:
     assets = Path(__file__).parent / "assets"
     head = '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    head += (
+        '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:'
+        'wght@400;500&family=Figtree:wght@400;500;600;700&display=swap">'
+    )
     head += "<style data-toad-kit>" + (assets / "kit.css").read_text() + "</style>"
     match = re.search(r"<head[^>]*>", html, re.IGNORECASE)
     output = html[: match.end()] + head + html[match.end() :] if match else head + html

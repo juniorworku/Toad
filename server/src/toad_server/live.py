@@ -11,12 +11,17 @@ from websockets.asyncio.client import ClientConnection, connect
 from .config import Settings
 from .providers import Emit
 
+# About 6 s of 100 ms mic frames.
+MAX_AUDIO = 64
+
 
 class LiveVoice:
     def __init__(self, settings: Settings, instructions: str):
         self.settings = settings
         self.instructions = instructions
-        self.commands: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=64)
+        # Commands (speech, mute, close) are never dropped; mic audio is capped at MAX_AUDIO
+        # queued frames so a stalled provider gets fresh audio instead of a backlog.
+        self.commands: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self.socket: ClientConnection | None = None
         self.started = False
         self.sequence = 0
@@ -56,16 +61,14 @@ class LiveVoice:
 
     async def append_audio(self, pcm: bytes) -> None:
         if self.started and pcm and len(pcm) % 2 == 0:
-            try:
-                self.commands.put_nowait(
-                    {
-                        "type": "session.input_audio.append",
-                        "audio": base64.b64encode(pcm).decode("ascii"),
-                    }
-                )
-            except asyncio.QueueFull:
-                # Do not let a slow provider accumulate stale microphone audio.
-                pass
+            if self.commands.qsize() >= MAX_AUDIO:
+                return  # Do not let a slow provider accumulate stale microphone audio.
+            self.commands.put_nowait(
+                {
+                    "type": "session.input_audio.append",
+                    "audio": base64.b64encode(pcm).decode("ascii"),
+                }
+            )
 
     @staticmethod
     def clip(content: str) -> str:
@@ -113,7 +116,8 @@ class LiveVoice:
                             self.started = True
                             if writer is None:
                                 writer = asyncio.create_task(send())
-                            await emit({"event": "started"})
+                            session = event.get("session") or {}
+                            await emit({"event": "started", "id": session.get("id", "")})
                         case "session.output_audio.delta":
                             await emit(base64.b64decode(event["delta"]))
                         case "session.input_transcript.delta" | "session.output_transcript.delta":
@@ -137,8 +141,13 @@ class LiveVoice:
                             self.closed.set()
                             break
                         case "error":
+                            error = event.get("error") or {}
                             await emit(
-                                {"event": "error", "message": "voice service rejected a command"}
+                                {
+                                    "event": "error",
+                                    "message": error.get("message")
+                                    or "voice service rejected a command",
+                                }
                             )
             finally:
                 self.started = False
@@ -154,4 +163,5 @@ class LiveVoice:
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self.closed.wait(), 5)
         if self.socket:
-            await self.socket.close()
+            with contextlib.suppress(Exception):
+                await self.socket.close()

@@ -21,7 +21,8 @@ class Voice(Protocol):
 
 
 class FakeVoice:
-    def __init__(self) -> None:
+    def __init__(self, instructions: str = "") -> None:
+        self.instructions = instructions
         self.requests: asyncio.Queue[str] = asyncio.Queue(maxsize=16)
         self.received_audio_bytes = 0
 

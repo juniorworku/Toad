@@ -22,9 +22,7 @@ async def smoke() -> None:
         listener.listen(16)
         listener.setblocking(False)
         port = listener.getsockname()[1]
-        server = uvicorn.Server(
-            uvicorn.Config(app, log_level="error", access_log=False)
-        )
+        server = uvicorn.Server(uvicorn.Config(app, log_level="error", access_log=False))
         serving = asyncio.create_task(server.serve(sockets=[listener]))
         try:
             async with asyncio.timeout(10):
@@ -47,9 +45,7 @@ async def smoke() -> None:
                             break
                         if "[Fake provider] Received: hello Toad" in frame:
                             received_text = True
-                print(
-                    "PASS: HTTP health, authenticated WebSocket, transcript and 24 kHz PCM tone."
-                )
+                print("PASS: HTTP health, authenticated WebSocket, transcript and 24 kHz PCM tone.")
                 print("Diagnostic fake only; no AI API calls were made.")
         finally:
             server.should_exit = True
