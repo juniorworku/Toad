@@ -642,3 +642,9 @@ def test_env_file_parser(tmp_path: Path) -> None:
         "OPENAI_PROJECT": "proj_x",
         "TOAD_TZ": "",
     }
+
+
+@pytest.mark.parametrize("name", ["finish_focus", "set_reminder", "cancel_reminder"])
+def test_engine_only_tools_say_so(api: FakeApi, state: Path, name: str) -> None:
+    with pytest.raises(toad_agent.ToolError, match="Toad server"):
+        make_app(api, state).run_tool(name, {})

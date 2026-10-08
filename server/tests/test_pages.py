@@ -1,4 +1,4 @@
-"""Port of Desku's page tests (server/test/pages.test.ts)."""
+"""Pages: storage, limits, retention, sandbox headers and the UI kit."""
 
 import re
 from pathlib import Path

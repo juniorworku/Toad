@@ -1,4 +1,4 @@
-"""Port of Desku's engine tests (server/test/desk.test.ts): the desk with a fake voice and brain."""
+"""The desk engine with a fake voice session and brain."""
 
 import asyncio
 import json
@@ -474,7 +474,7 @@ async def test_a_tap_after_stop_does_not_undo_the_pause(tmp_path: Path) -> None:
     r = await rig(tmp_path, FakeBrain(answer("Ten more minutes.")), always_listen=True)
     await r.device.say({"type": "stop"})
     await r.device.say({"type": "say", "text": "10 more minutes"})
-    assert r.desk.listen_paused, "Stop holds until Talk, as in Desku"
+    assert r.desk.listen_paused, "Stop holds until Talk"
     await r.desk.stop()
     r.advance(60_000)
     await r.tick()

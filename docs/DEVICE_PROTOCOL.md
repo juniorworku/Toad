@@ -1,6 +1,6 @@
 # Device protocol
 
-The WebSocket contract between the phone (`android/…/engine/EngineLink.kt`) and the engine (`server/src/toad_server/desk.py`). It is Desku's protocol unchanged (baseline `2aea122`): the Kotlin client was ported without protocol edits, so any change here must change both sides. Synthetic examples of every message are in [protocol/device-fixtures.json](protocol/device-fixtures.json).
+The WebSocket contract between the phone (`android/…/engine/EngineLink.kt`) and the engine (`server/src/toad_server/desk.py`). Any change here must change both sides; `server/tests/test_protocol.py` checks the engine against the Kotlin source. Synthetic examples of every message are in [protocol/device-fixtures.json](protocol/device-fixtures.json).
 
 ## Connection
 
@@ -30,7 +30,7 @@ Binary frames in both directions: raw mono PCM16 little-endian at 24 kHz, no hea
 | `say` | `text` | A tap on a screen button; the brain answers it out loud as `[Tapped on the desk screen] text` |
 | `presence` | `present`: boolean | On-device face detection sees (or stops seeing) someone |
 
-Booleans must be JSON booleans (stricter than Desku's JavaScript coercion; the Android app already sends booleans). Malformed JSON or an unknown type gets an `error`.
+Booleans must be JSON booleans (the Android app sends booleans). Malformed JSON or an unknown type gets an `error`.
 
 ## Engine → phone (JSON)
 
@@ -40,7 +40,7 @@ Booleans must be JSON booleans (stricter than Desku's JavaScript coercion; the A
 | `transcript` | `role` (`user`/`assistant`), `delta` | Live captions for both sides |
 | `desk` | `memories[{id,text,createdAt}]`, `focus{task,startedAt}` or null, `checkins[{id,dueAt,about,createdAt}]` | On connect and after every stored change; times are epoch milliseconds |
 | `capture` | `requestId`, `countdownSeconds` (0) | Take one photo now (the camera is always on); 20 s timeout |
-| `checkin` | `about` | A check-in is starting: wake the screen |
+| `checkin` | `about` | A check-in is starting: wake the screen. An `about` starting with `Reminder: ` is a reminder; the phone shows it as a notice instead of the focus check-in screen |
 | `page` | `id`, `title`, `url` | Open the relative `url` (`/p/<id>?v=<updatedAt>`; the version makes the phone reload an updated page) |
 | `link` | `url`, `label` | An app Connect Link for the user to open |
 | `calling` | `about` | Toad is phoning the user, or someone for them |

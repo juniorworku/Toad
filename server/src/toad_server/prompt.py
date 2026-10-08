@@ -1,6 +1,7 @@
 """Front-end voice instructions and the spoken local-time format."""
 
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
@@ -20,6 +21,69 @@ def local_time(ms: int, time_zone: str) -> str:
 
 def local_hour(ms: int, time_zone: str) -> int:
     return datetime.fromtimestamp(ms / 1000, ZoneInfo(time_zone)).hour
+
+
+def local_day(ms: int, time_zone: str) -> str:
+    """The local calendar date, YYYY-MM-DD."""
+    return datetime.fromtimestamp(ms / 1000, ZoneInfo(time_zone)).date().isoformat()
+
+
+def start_of_day(ms: int, time_zone: str) -> int:
+    at = datetime.fromtimestamp(ms / 1000, ZoneInfo(time_zone))
+    return int(at.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+
+
+def clock_time(ms: int, time_zone: str) -> str:
+    """The local clock time, e.g. "3:05 PM"."""
+    return local_time(ms, time_zone).split(" at ")[-1].rsplit(" ", 1)[0]
+
+
+def when(ms: int, now_ms: int, time_zone: str) -> str:
+    """ "3:05 PM" today, "Tue 3:05 PM" on another day."""
+    at = datetime.fromtimestamp(ms / 1000, ZoneInfo(time_zone))
+    prefix = "" if local_day(ms, time_zone) == local_day(now_ms, time_zone) else f"{at:%a} "
+    return prefix + clock_time(ms, time_zone)
+
+
+def parse_at(text: str, now_ms: int, time_zone: str) -> int:
+    """A local "HH:MM" (24h, or "3:30 pm") → its next occurrence; an ISO time with an offset
+    → that moment. Raises ValueError otherwise."""
+    zone = ZoneInfo(time_zone)
+    now = datetime.fromtimestamp(now_ms / 1000, zone)
+    clean = text.strip().lower()
+    match = re.fullmatch(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", clean)
+    if match:
+        hour, minute, half = int(match[1]), int(match[2] or 0), match[3]
+        if half:
+            if not 1 <= hour <= 12:
+                raise ValueError(f'"{text}" is not a time of day')
+            hour = hour % 12 + (12 if half == "pm" else 0)
+        if hour > 23 or minute > 59:
+            raise ValueError(f'"{text}" is not a time of day')
+        at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if at <= now:
+            at += timedelta(days=1)
+        return int(at.timestamp() * 1000)
+    try:
+        moment = datetime.fromisoformat(text.strip().replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f'"{text}" isn\'t a time. Use HH:MM (24h) or an ISO time.') from None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=zone)
+    return int(moment.timestamp() * 1000)
+
+
+def next_occurrence(due_ms: int, repeat: str, time_zone: str) -> int:
+    """The same local clock time on the next day ("daily") or next weekday ("weekdays")."""
+    zone = ZoneInfo(time_zone)
+    at = datetime.fromtimestamp(due_ms / 1000, zone)
+    day = at.date()
+    while True:
+        day += timedelta(days=1)
+        if repeat != "weekdays" or day.weekday() < 5:
+            break
+    local = datetime.combine(day, at.time().replace(tzinfo=None), zone)
+    return int(local.timestamp() * 1000)
 
 
 def live_instructions(store: "Store", time_zone: str, now_ms: int) -> str:

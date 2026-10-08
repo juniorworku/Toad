@@ -5,7 +5,7 @@ description: Work on Toad's AI agent, the saved OpenAI Agents API agent defined 
 
 # Toad's agent
 
-The brain is one saved Agents API agent named "Toad". Its whole definition (model, instructions, hosted `web_search`, 12 function tools, reasoning settings) lives in `agent/toad-agent.json`. Two programs drive it:
+The brain is one saved Agents API agent named "Toad". Its whole definition (model, instructions, hosted `web_search`, 15 function tools, reasoning settings) lives in `agent/toad-agent.json`. Two programs drive it:
 
 - **The engine** (`server/src/toad_server/brain.py`): on startup it syncs the saved agent to the JSON (create, or update when the definition hash changed) and keeps one long-lived session in `DATA_DIR/toad.json`. A definition change starts a fresh session, because sessions copy the agent config when created. Composio meta tools are appended at runtime when `COMPOSIO_API_KEY` is set; don't add them to the JSON.
 - **The terminal client** (`agent/toad_agent.py`): a separate, small client with its own state in `agent/state/`. It runs four tools locally (`get_desk_status`, `set_focus`, `save_memory`, `delete_memory`) and reports the rest as server-only.

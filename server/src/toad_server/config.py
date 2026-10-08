@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     away_call_after_seconds: float = Field(default=60, gt=0)
     quiet_hours: Annotated[tuple[int, int] | None, NoDecode] = (22, 8)
 
+    # Companion habits. A break nudge after this many minutes seen at the desk without leaving
+    # (0 turns it off), and a short briefing the first time the camera sees you each day.
+    break_after_minutes: int = Field(default=50, ge=0)
+    morning_briefing: bool = True
+
     # Composio (the user's apps). Off when the key is empty.
     composio_api_key: SecretStr = SecretStr("")
     composio_user_id: str = "toad-owner"

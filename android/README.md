@@ -1,6 +1,6 @@
 # Toad Android
 
-Native Kotlin/Compose app migrated from Desku commit `2aea122`. Namespace/application ID: `com.toad.companion`; Gradle project: `Toad`. Both local Claude and server-connected modes are retained. The default animated character is a moss-green toad, with all six expressions, eye-follow and voice-driven mouth movement. Optional video-avatar fallback remains supported.
+Native Kotlin/Compose app. Namespace/application ID: `com.toad.companion`; Gradle project: `Toad`. Both local Claude and server-connected modes are retained. The default animated character is a moss-green toad, with all six expressions, eye-follow and voice-driven mouth movement. Optional video-avatar fallback remains supported.
 
 From this directory:
 

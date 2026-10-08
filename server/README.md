@@ -1,6 +1,6 @@
 # Toad engine (Python)
 
-This is the backend that makes the desk phone a proactive buddy. It is a Python (FastAPI) rebuild of Desku's Node/TypeScript engine with the same architecture, device protocol and behavior:
+This is the backend that makes the desk phone a proactive buddy, written in Python (FastAPI):
 
 - **GPT-Live** (`gpt-live-1`) is Toad's ears and voice.
 - A saved **Agents API** agent, also called "Toad" (`../agent/toad-agent.json`), is its brain.
@@ -27,6 +27,16 @@ This is the backend that makes the desk phone a proactive buddy. It is a Python 
 - **The memory rule is enforced in code.** `save_memory` is refused unless the user's own words ask for it ("remember…", "don't forget…") or are a yes to Toad's offer (`memory_policy.py`). Calling anyone other than the user needs the same kind of consent (`tools.allows_call`).
 - **Toad can start the conversation.** Due check-ins open a voice session, the brain writes the check-in and GPT-Live speaks it unprompted. Check-ins that come due while the phone is offline are delivered when it reconnects (or turn into a phone call, below).
 - **It notices you.** The phone's on-device face detection sends `presence`. Arriving puts the Today screen up; coming back after 10+ minutes away with a focus set gets a welcome-back question (at most every 30 minutes, never in quiet hours).
+
+## Companion habits
+
+- **Reminders.** `set_reminder` takes minutes from now or a local time (`15:00`), once, `daily` or `weekdays`; `cancel_reminder` takes an id or a few words (also for focus check-ins). Reminders are check-ins whose `about` starts with `Reminder: `: they're spoken as reminders, shown on the Today screen and as a notice on the phone, and turn into a call when you're away. Repeats keep the local time across daylight-saving changes and skip occurrences missed while the engine was down.
+- **Focus time.** `finish_focus` records an outcome; `get_desk_status` reports `focused_today` and `finished_today`, and the Today screen shows them. Switching focus closes the previous session's time.
+- **Morning briefing.** The first time the camera sees you each day (after 5 AM, `MORNING_BRIEFING=1`), Toad gives a short briefing.
+- **Break nudges.** After `BREAK_AFTER_MINUTES` (50) in view without a real break (2+ minutes away), Toad suggests one, once per stretch.
+- **Not mid-conversation, not at night.** Briefings, welcome-back and nudges wait if anyone spoke in the last 30 s or a brain turn or call is running, and never start in `QUIET_HOURS`.
+- **Changes to your apps need your yes.** A Composio call that sends, creates, changes or deletes (tool names like `GMAIL_SEND_EMAIL`) is refused unless your latest words are a yes to Toad's question.
+- **Tidy.** Finished to-dos are kept a week.
 
 ## Setup
 
@@ -107,7 +117,7 @@ Only one phone is connected at a time; a newer connection replaces the older one
 |---|---|
 | `main.py` | HTTP routes, device socket, provider wiring, token redaction |
 | `desk.py` | the engine: device, voice lifecycle, delegations, check-ins, presence, calls, controls |
-| `tools.py` | the 12 desk tools and the Composio pass-through |
+| `tools.py` | the 15 desk tools and the Composio pass-through |
 | `brain.py` | saved agent sync, persistent session, streamed tool calls, recovery |
 | `live.py`, `prompt.py`, `transcript.py`, `providers.py` | GPT-Live client, voice instructions, transcript folding, the fake provider |
 | `store.py`, `pages.py`, `today.py`, `assets/` | JSON state, pages, the Today screen, the UI kit |
@@ -120,7 +130,7 @@ Only one phone is connected at a time; a newer connection replaces the older one
 .claude/skills/toad-engine/scripts/check.sh
 ```
 
-runs everything offline: the server suite (`tests/`, 110 tests, with a fake GPT-Live, a fake brain, a fake phone, a loopback WebSocket provider, mock AgentPhone and Composio, and the real OpenAI SDK against a mock HTTP/SSE transport), the agent CLI suite, Ruff, strict mypy, and a check that every function tool in `agent/toad-agent.json` is implemented here. The ported Desku suites are `test_engine.py`, `test_away.py` and `test_apps.py`. They cover:
+runs everything offline: the server suite (`tests/`, 110 tests, with a fake GPT-Live, a fake brain, a fake phone, a loopback WebSocket provider, mock AgentPhone and Composio, and the real OpenAI SDK against a mock HTTP/SSE transport), the agent CLI suite, Ruff, strict mypy, and a check that every function tool in `agent/toad-agent.json` is implemented here. They cover:
 
 - audio flow, voice turns, delegation answered with the right ID, empty delegations, brain failure
 - refusing memories the user didn't ask for
@@ -149,4 +159,4 @@ The step-by-step live acceptance run (providers, the real phone, apps, calls) is
 
 Verified offline: everything above, by the test suites and a local run of the engine in fake mode with the USB bridge and `fake_phone.py` in front of it (HTTP routes, token handling, device socket through the bridge, audio resampling, tap round trip).
 
-Not verified yet: any live provider call (no keys were used), the real phone against this Python engine, apps, phone calls, and the deployment. Desku's own live runs (GPT-Live voice in and out, the camera tool reading the demo list, a check-in spoken first, the memory rule, context carried across voice sessions) were against the TypeScript engine; this engine sends the same events, but that still has to be confirmed live.
+Not verified yet: any live provider call (no keys were used), the real phone against this Python engine, apps, phone calls, and the deployment.

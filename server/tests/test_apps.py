@@ -1,4 +1,4 @@
-"""Port of Desku's Composio tests (server/test/apps.test.ts), against a fake Python SDK."""
+"""Composio apps, against a fake of the Python SDK."""
 
 import json
 from pathlib import Path

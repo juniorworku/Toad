@@ -766,6 +766,12 @@ class CompanionViewModel(app: Application) : AndroidViewModel(app), BrainHost {
         override fun onCheckin(about: String) {
             touch()
             voice.chimeTimer()
+            // A reminder isn't a focus session: wake the screen and show it, without the timer ring.
+            if (about.startsWith(REMINDER_PREFIX)) {
+                _ui.update { it.copy(ambient = false, memoriesOpen = false) }
+                notice(about)
+                return
+            }
             _ui.update {
                 it.copy(checkIn = CheckIn(about.removePrefix(FOCUS_PREFIX), lastFocusMinutes), cameraOpen = false, snapshot = null, card = null, memoriesOpen = false, ambient = false)
             }
@@ -854,6 +860,7 @@ class CompanionViewModel(app: Application) : AndroidViewModel(app), BrainHost {
     companion object {
         private const val ENGINE_UNREACHABLE = "I can't reach the Toad engine. Check the server address in Settings."
         private const val FOCUS_PREFIX = "Focus check-in: "
+        private const val REMINDER_PREFIX = "Reminder: "
         private const val GLANCE_SHOW_MS = 3_500L
         private const val AMBIENT_AFTER_MS = 3 * 60_000L
         private const val SPEAKING_HOLD_MS = 500L

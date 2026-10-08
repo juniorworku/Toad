@@ -6,7 +6,8 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from .memory_policy import allows_save
-from .prompt import local_time
+from .prompt import local_time, parse_at, when
+from .today import duration, focus_today
 
 if TYPE_CHECKING:
     from .desk import Desk
@@ -22,6 +23,39 @@ DESK_ACTIONS = (
     "end_conversation",
 )
 FOCUS_CHECKIN = "Focus check-in: "
+REMINDER = "Reminder: "
+REPEATS = ("daily", "weekdays")
+# Composio tool slugs (GMAIL_SEND_EMAIL, GOOGLECALENDAR_CREATE_EVENT…) that change something.
+APP_WRITE = re.compile(
+    r"_(SEND|CREATE|DELETE|UPDATE|POST|REPLY|ADD|REMOVE|MOVE|PATCH|INSERT|ARCHIVE|TRASH|INVITE|"
+    r"ACCEPT|DECLINE|CANCEL|FORWARD|UPLOAD|EDIT|SET|STAR|MARK|MODIFY|SHARE|PUBLISH|WRITE|COMMENT|"
+    r"MERGE|CLOSE|ASSIGN|SCHEDULE|BOOK|PAY|TRANSFER|RESPOND|RSVP|APPEND|REPLACE|RENAME|COPY|PIN|"
+    r"LABEL|SUBMIT|APPROVE|REJECT|ENABLE|DISABLE|RESTORE|CLEAR|EMPTY|REACT)(_|$)"
+)
+SLUG = re.compile(r"\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b")
+YES_TO_QUESTION = re.compile(
+    r"^\s*(yes|yeah|yep|yup|sure|ok|okay|do it|go ahead|send it|please do|confirm(ed)?|"
+    r"correct|that's right|sounds good|absolutely|definitely)\b"
+)
+
+
+def app_writes(name: str, args: Json) -> list[str]:
+    """The app actions in a Composio call that would change something (empty for reads)."""
+    if name != "COMPOSIO_MULTI_EXECUTE_TOOL":
+        return []
+    slugs = SLUG.findall(json.dumps(args))
+    return sorted({s for s in slugs if not s.startswith("COMPOSIO_") and APP_WRITE.search(s)})
+
+
+def allows_app_write(user_words: str, previous_assistant: str | None) -> bool:
+    """
+    Changing something in the user's apps needs a clear yes in their latest words, right after
+    Toad asked (having said exactly what it would do). App-initiated turns never qualify.
+    """
+    asked = (previous_assistant or "").strip().endswith("?")
+    return asked and bool(YES_TO_QUESTION.search(user_words.lower()))
+
+
 YES = re.compile(
     r"^\s*(yes|yeah|yep|yup|sure|ok|okay|do it|go ahead|please do|correct|that's right|right)\b"
 )  # noqa: E501
@@ -80,6 +114,7 @@ class Tools:
         now = store.clock()
         match name:
             case "get_desk_status":
+                focused, finished = focus_today(store, desk.settings.time_zone, now)
                 focus = store.focus()
                 pending = store.pending_checkins()
                 todos = store.todos()
@@ -119,6 +154,18 @@ class Tools:
                             ],
                             "camera": "on" if desk.camera_available() else "off",
                             "user_at_desk": desk.presence_text(),
+                            "focused_today": duration(focused),
+                            "finished_today": finished,
+                            "reminders": [
+                                {
+                                    "id": c["id"],
+                                    "about": str(c["about"]).removeprefix(REMINDER),
+                                    "at": when(c["dueAt"], now, desk.settings.time_zone),
+                                    "repeat": c.get("repeat"),
+                                }
+                                for c in pending
+                                if str(c["about"]).startswith(REMINDER)
+                            ],
                         },
                         separators=(",", ":"),
                     )
@@ -226,6 +273,62 @@ class Tools:
                 await desk.show_today()
                 verb = "Checked off" if name == "complete_todo" else "Removed"
                 return ok(f'{verb} "{found["text"]}". The Today screen is updated.')
+            case "finish_focus":
+                current = store.focus()
+                if not current:
+                    return err("There's no focus to finish. Ask what they're working on.")
+                outcome = text(args.get("outcome"))
+                done = await store.finish_focus(outcome)
+                if not done:
+                    return err("There's no focus to finish.")
+                await store.cancel_checkins(lambda c: str(c["about"]).startswith(FOCUS_CHECKIN))
+                await desk.show_today()
+                minutes = round((done["doneAt"] - done["startedAt"]) / 60_000)
+                focused, _ = focus_today(store, desk.settings.time_zone, store.clock())
+                return ok(
+                    f'Marked "{current["task"]}" done after {duration(minutes)}. '
+                    f"Focused today: {duration(focused)}. Its check-in is cancelled."
+                )
+            case "set_reminder":
+                about = text(args.get("text"))
+                if not about:
+                    return err("text is required")
+                repeat = text(args.get("repeat")) or None
+                if repeat and repeat not in REPEATS:
+                    return err('repeat must be "daily", "weekdays" or null')
+                minutes, at = args.get("in_minutes"), text(args.get("at"))
+                zone = desk.settings.time_zone
+                if isinstance(minutes, (int, float)) and not isinstance(minutes, bool):
+                    if minutes <= 0 or at:
+                        return err("Give either in_minutes (above 0) or at, not both.")
+                    due = int(now + minutes * 60_000)
+                elif at:
+                    due = parse_at(at, now, zone)
+                    if due <= now:
+                        return err(f"{at} is in the past. Ask when they want it.")
+                else:
+                    return err("Say when: in_minutes, or at (local HH:MM).")
+                reminder = await store.add_checkin(due, REMINDER + about, repeat)
+                await desk.show_today()
+                again = (
+                    f", then every {'weekday' if repeat == 'weekdays' else 'day'}" if repeat else ""
+                )
+                return ok(
+                    f"Reminder {reminder['id']} set for {when(due, now, zone)}{again}. "
+                    "It's on the Today screen."
+                )
+            case "cancel_reminder":
+                query = text(args.get("reminder")).lower()
+                pending = store.pending_checkins()
+                found = next((c for c in pending if c["id"] == query), None) or next(
+                    (c for c in pending if query and query in str(c["about"]).lower()), None
+                )
+                if not found:
+                    listing = "; ".join(f"{c['id']} {c['about']}" for c in pending) or "none"
+                    return err(f'No reminder or check-in matches "{query}". Pending: {listing}')
+                await store.cancel_checkins(lambda c: c["id"] == found["id"])
+                await desk.show_today()
+                return ok(f'Cancelled "{found["about"]}".')
             case "show_today":
                 await desk.show_today()
                 return ok("The Today screen (to-dos, focus, memories) is on the desk screen.")
@@ -246,5 +349,13 @@ class Tools:
                 return ok(await desk.control(action))
             case _:
                 if desk.apps and desk.apps.has(name):
+                    # Enforced here, not just in the prompt: no change to the user's apps
+                    # without their yes to exactly what Toad said it would do.
+                    writes = app_writes(name, args)
+                    if writes and not allows_app_write(self.user_words, self.previous_assistant):
+                        return err(
+                            f"Not done: {', '.join(writes)} would change the user's apps. Say "
+                            "exactly what you'll do and ask; run it only after they say yes."
+                        )
                     return await desk.apps.run(name, args, desk.show_link)
                 return err(f"Unknown function {name}")

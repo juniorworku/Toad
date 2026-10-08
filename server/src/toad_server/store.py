@@ -12,6 +12,7 @@ from typing import Any, TypeVar
 
 Json = dict[str, Any]
 T = TypeVar("T")
+DONE_TODO_KEEP_MS = 7 * 86_400_000
 
 
 def empty_state() -> Json:
@@ -22,6 +23,8 @@ def empty_state() -> Json:
         "checkins": [],
         "todos": [],
         "todayPageId": None,
+        # Local date (YYYY-MM-DD) of the last morning briefing, so it happens once a day.
+        "briefedOn": None,
         "agent": dict.fromkeys(
             ("agentId", "definitionHash", "sessionId", "sessionHash", "appsSessionId")
         ),
@@ -157,7 +160,8 @@ class Store:
 
         def mutate(state: Json) -> Json:
             if state["focus"]:
-                state["focusHistory"].append(state["focus"])
+                # Switched, not finished: keep when it ended so focus time can be added up.
+                state["focusHistory"].append(state["focus"] | {"endedAt": self.clock()})
             state["focusHistory"] = state["focusHistory"][-50:]
             focus = {"task": clean, "startedAt": self.clock()}
             state["focus"] = focus
@@ -182,6 +186,7 @@ class Store:
             raise ValueError("empty to-do")
 
         def mutate(state: Json) -> Json:
+            self._prune_done(state)
             ids = [int(t["id"][1:]) for t in state["todos"] if t["id"][1:].isdigit()]
             todo = {
                 "id": f"t{max(ids, default=0) + 1}",
@@ -193,6 +198,13 @@ class Store:
             return todo
 
         return await self._change(mutate)
+
+    def _prune_done(self, state: Json) -> None:
+        """Finished to-dos are kept a week (for "what did I get done?"), then dropped."""
+        cutoff = self.clock() - DONE_TODO_KEEP_MS
+        state["todos"] = [
+            t for t in state["todos"] if not (t["done"] and t.get("doneAt", cutoff) < cutoff)
+        ]
 
     def find_todo(self, id_or_words: str) -> Json | None:
         query = id_or_words.strip().lower()
@@ -232,13 +244,16 @@ class Store:
 
         return await self._change(mutate)
 
-    async def add_checkin(self, due_at: int, about: str) -> Json:
-        checkin = {
+    async def add_checkin(self, due_at: int, about: str, repeat: str | None = None) -> Json:
+        """A check-in or reminder; `repeat` ("daily" or "weekdays") reschedules it when it fires."""
+        checkin: Json = {
             "id": "c" + secrets.token_hex(8),
             "dueAt": due_at,
             "about": about.strip()[:300],
             "createdAt": self.clock(),
         }
+        if repeat:
+            checkin["repeat"] = repeat
         await self._change(lambda state: state["checkins"].append(checkin))
         return dict(checkin)
 
@@ -273,6 +288,13 @@ class Store:
         if unknown:
             raise ValueError(f"unknown agent fields: {unknown}")
         await self._change(lambda state: state["agent"].update(patch))
+
+    def briefed_on(self) -> str | None:
+        value = self._state.get("briefedOn")
+        return str(value) if value else None
+
+    async def set_briefed_on(self, day: str) -> None:
+        await self._change(lambda state: state.update(briefedOn=day))
 
     async def set_today_page_id(self, identifier: str) -> None:
         await self._change(lambda state: state.update(todayPageId=identifier))

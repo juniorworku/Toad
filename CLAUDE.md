@@ -1,6 +1,6 @@
 # Toad
 
-AI desk companion: a Kotlin/Compose Android app (`android/`, package `com.toad.companion`) and a Python FastAPI engine (`server/src/toad_server/`). Rebuild of Desku (sibling repo `../Desku`, baseline commit `2aea122`) with the server in Python; behavior, device protocol and agent tools must stay at parity with it ([docs/PARITY.md](docs/PARITY.md)).
+AI desk companion: a Kotlin/Compose Android app (`android/`, package `com.toad.companion`) and a Python FastAPI engine (`server/src/toad_server/`). What each feature does and where it's tested: [docs/FEATURES.md](docs/FEATURES.md).
 
 ## Skills
 

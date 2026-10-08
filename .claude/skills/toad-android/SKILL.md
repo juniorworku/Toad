@@ -5,7 +5,7 @@ description: Build, test, install and drive Toad's Kotlin/Compose Android app (a
 
 # Toad Android app
 
-The phone app is a faithful port of Desku's app, rebranded: package `com.toad.companion`, the moss-green toad character (`ui/Toad.kt`, six expressions), the Nightlight screens, wake phrase "Hey Toad". It has two modes:
+The phone app: package `com.toad.companion`, the moss-green toad character (`ui/Toad.kt`, six expressions), the Nightlight screens, wake phrase "Hey Toad". It has two modes:
 
 - **Engine mode** (Settings → engine address set): the phone is the Python engine's device. Mic up and voice down as 24 kHz PCM16, camera on request, the screen shows the engine's state. `engine/EngineLink.kt` is the protocol client; keep it in step with `server/src/toad_server/desk.py` (see the `toad-engine` skill).
 - **On-phone mode** (address blank): Claude runs on the phone (`brain/Brain.kt`) with its own six tools and `memory/MemoryStore.kt`.

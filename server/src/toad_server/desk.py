@@ -27,7 +27,7 @@ from .apps import Apps
 from .config import Settings
 from .pages import Pages
 from .phone import CallRequest, PhoneCaller, mask
-from .prompt import live_instructions, local_hour, local_time
+from .prompt import live_instructions, local_day, local_hour, local_time, next_occurrence
 from .protocol import Camera, Forget, Photo, PhotoError, Presence, Say, device_message
 from .providers import FakeVoice, Voice
 from .store import Store
@@ -61,12 +61,19 @@ KNOWN_MESSAGES = {
     "say",
     "presence",
 }
+REMINDER = "Reminder: "
 SORRY = "Sorry, I couldn't get to that just now. Can you try again in a moment?"
 # Back after this long away (per the camera) → Toad says welcome back and follows up.
 WELCOME_AFTER_MS = 10 * 60_000
 WELCOME_EVERY_MS = 30 * 60_000
 # Not seen by the camera for this long when a check-in is due → phone them instead.
 AWAY_BY_CAMERA_MS = 2 * 60_000
+# Gone this long counts as a break; shorter absences don't reset the time at the desk.
+BREAK_RESET_MS = 2 * 60_000
+# The morning briefing waits until this local hour.
+BRIEFING_FROM_HOUR = 5
+# Speech within this many seconds means a conversation is going on.
+CONVERSATION_GAP_SECONDS = 30
 # No "phone offline → call" right after startup: the phone needs a moment to reconnect.
 STARTUP_GRACE_MS = 2 * 60_000
 CONTROL_REPLIES = {
@@ -167,6 +174,9 @@ class Desk:
         self.presence: tuple[bool, int] | None = None
         self.last_welcome = -WELCOME_EVERY_MS
         self.last_today_shown = -10 * 60_000
+        self.last_heard = float("-inf")
+        self.seated_since: int | None = None
+        self.last_break = 0
         self.started_at = store.clock()
         store.on_change(lambda: self.post(self.store.desk()))
 
@@ -455,6 +465,8 @@ class Desk:
         self.last_activity = self.clock()
         if role == "user":
             self.awaiting_reply = None  # someone's at the desk
+            if delta.strip():
+                self.last_heard = self.clock()
             # Barge-in: GPT-Live already stops generating when the user talks over it, but the
             # phone has a few seconds of Toad's speech queued. Tell it to drop that right away.
             now = self.clock()
@@ -647,56 +659,113 @@ class Desk:
 
     # ------------------------------------------------------------------ presence
 
+    def quiet(self, wall_ms: int) -> bool:
+        """Local quiet hours: Toad doesn't start conversations or call on its own."""
+        hours = self.settings.quiet_hours
+        return hours is not None and in_quiet_hours(
+            local_hour(wall_ms, self.settings.time_zone), hours
+        )
+
+    def conversation_active(self) -> bool:
+        """Someone is talking (or about to): don't start something new on top of it."""
+        recent = self.clock() - max(self.last_voice, self.last_heard) < CONVERSATION_GAP_SECONDS
+        return self.brain_busy > 0 or self.calling or recent
+
+    async def speak_event(self, text: str, what: str) -> None:
+        """A brain turn the app starts (welcome, briefing, break), spoken as a new turn."""
+        await self.start()
+        voice, generation = self.voice, self.generation
+        try:
+            answer = await self._desk_event(text, self.tools("", None))
+            if voice and generation == self.generation and answer.strip():
+                await voice.commentary(answer.strip(), None)
+        except Exception as error:  # noqa: BLE001 - a missed nudge is only logged
+            self.log(f"desk: {what} failed: {error}")
+
     async def on_presence(self, present: bool) -> None:
         """
-        Presence from the phone's camera. Coming back after a while is a moment to notice: Toad
-        greets the user and follows up on what they were working on.
+        Presence from the phone's camera. Arriving puts the day on the screen (with a short
+        briefing the first time each day); coming back after a while gets a welcome and a
+        question about the focus.
         """
         now = self.store.clock()
         before = self.presence
         if before and before[0] == present:
             return
         self.presence = (present, now)
+        if present and (
+            not before or now - before[1] > BREAK_RESET_MS or self.seated_since is None
+        ):
+            self.seated_since = now  # a real break (or the first sighting) restarts the clock
         # Seen arriving (or first seen after connecting): put the day on the screen.
         arrived = present and (not before or now - before[1] > 60_000)
         if arrived and now - self.last_today_shown > 2 * 60_000:
             await self.show_today()
-        if not present or not before:
+        if not present:
             return
         self.awaiting_reply = None
-        away_ms = now - before[1]
-        focus = self.store.focus()
-        hours = self.away.quiet_hours if self.away else None
-        quiet = hours is not None and in_quiet_hours(
-            local_hour(now, self.settings.time_zone), hours
-        )
-        live = self.voice_task is not None and not self.voice_task.done()
+        if not self.brain or self.conversation_active() or self.quiet(now):
+            return
+        zone = self.settings.time_zone
+        today = local_day(now, zone)
         if (
-            away_ms < WELCOME_AFTER_MS
+            self.settings.morning_briefing
+            and self.store.briefed_on() != today
+            and local_hour(now, zone) >= BRIEFING_FROM_HOUR
+        ):
+            await self.store.set_briefed_on(today)
+            self.last_welcome = now
+            self.log("desk: first time at the desk today; briefing")
+            await self.speak_event(
+                "[Desk event] The camera shows the user at the desk for the first time today. "
+                "Greet them and give a short spoken briefing: call get_desk_status for open "
+                "to-dos, reminders, check-ins and anything you're remembering, and if the "
+                "calendar is connected, today's next events. Two or three sentences, then offer "
+                "to pick one thing to focus on.",
+                "briefing",
+            )
+            return
+        focus = self.store.focus()
+        if (
+            not before
+            or now - before[1] < WELCOME_AFTER_MS
             or not focus
-            or live
-            or self.brain_busy > 0
             or now - self.last_welcome < WELCOME_EVERY_MS
-            or quiet
-            or not self.brain
         ):
             return
         self.last_welcome = now
-        minutes = round(away_ms / 60_000)
+        minutes = round((now - before[1]) / 60_000)
         self.log(f"desk: user back after {minutes} min; following up")
-        await self.start()
-        voice, generation = self.voice, self.generation
-        try:
-            answer = await self._desk_event(
-                f"[Desk event] The camera shows the user just came back to the desk after "
-                f"{minutes} minutes away. Their focus was: {focus['task']}. Welcome them back in "
-                "one short sentence and ask one question about that focus.",
-                self.tools("", None),
+        await self.speak_event(
+            f"[Desk event] The camera shows the user just came back to the desk after "
+            f"{minutes} minutes away. Their focus was: {focus['task']}. Welcome them back in "
+            "one short sentence and ask one question about that focus.",
+            "welcome back",
+        )
+
+    async def maybe_suggest_break(self, wall: int) -> None:
+        """After a long stretch at the desk, suggest a short break (at most once per stretch)."""
+        minutes = self.settings.break_after_minutes
+        seated = self.seated_since
+        if not minutes or not self.presence or not self.presence[0] or seated is None:
+            return
+        since = max(seated, self.last_break)
+        if wall - since < minutes * 60_000 or not self.brain or not self.peer:
+            return
+        if self.conversation_active() or self.quiet(wall):
+            return
+        self.last_break = wall
+        sat = round((wall - seated) / 60_000)
+        self.log(f"desk: {sat} min at the desk; suggesting a break")
+        self.spawn(
+            self.speak_event(
+                f"[Desk event] The camera shows the user has been at the desk for {sat} minutes "
+                "without a break. Suggest a short break (stand up, stretch, drink some water, "
+                "rest the eyes) in one friendly sentence. Don't nag, and keep it light if they "
+                "seem busy.",
+                "break nudge",
             )
-            if voice and generation == self.generation:
-                await voice.commentary(answer.strip(), None)
-        except Exception as error:  # noqa: BLE001 - a missed welcome is only logged
-            self.log(f"desk: welcome back failed: {error}")
+        )
 
     # ------------------------------------------------------------------ check-ins and idle
 
@@ -751,26 +820,37 @@ class Desk:
                     self.spawn(
                         self.call_away(checkin, "Toad asked at the desk and nobody answered")
                     )
+            await self.maybe_suggest_break(wall)
             due = [c for c in self.store.pending_checkins() if c["dueAt"] <= wall]
             if not self.peer:
                 # With phone calls set up, an offline desk means call; otherwise wait for the phone.
                 if not self.away or wall - self.started_at < STARTUP_GRACE_MS:
                     return
                 for checkin in due:
-                    await self.store.mark_checkin_fired(checkin["id"])
+                    await self.fire(checkin, wall)
                     self.spawn(self.call_away(checkin, "the desk phone is offline"))
                 return
             gone_for = 0
             if self.presence and not self.presence[0]:
                 gone_for = wall - self.presence[1]
             for checkin in due:
-                await self.store.mark_checkin_fired(checkin["id"])
+                await self.fire(checkin, wall)
                 if self.away and gone_for > AWAY_BY_CAMERA_MS:
                     self.spawn(
                         self.call_away(checkin, "the desk camera hasn't seen them for a while")
                     )
                 else:
                     await self.deliver_checkin(checkin)
+
+    async def fire(self, checkin: Json, wall: int) -> None:
+        """Marks a check-in or reminder fired; a repeating reminder gets its next time."""
+        await self.store.mark_checkin_fired(checkin["id"])
+        repeat = checkin.get("repeat")
+        if repeat:
+            due = checkin["dueAt"]
+            while due <= wall:  # skip occurrences missed while the engine was down
+                due = next_occurrence(due, repeat, self.settings.time_zone)
+            await self.store.add_checkin(due, checkin["about"], repeat)
 
     async def deliver_checkin(self, checkin: Json) -> None:
         self.log(f"desk: check-in due: {checkin['about']}")
@@ -785,11 +865,15 @@ class Desk:
         try:
             late = round((self.store.clock() - checkin["dueAt"]) / 60_000)
             delay = f" ({late} minutes late; the phone was offline)" if late > 2 else ""
-            answer = await self._desk_event(
-                f"[Desk event] Check-in due{delay}: {checkin['about']}. "
-                "Check in with the user now, in one or two sentences.",
-                self.tools("", None),
+            about = str(checkin["about"])
+            prompt = (
+                f"[Desk event] Reminder due{delay}: {about.removeprefix(REMINDER)}. Remind the "
+                "user now in one short, natural sentence."
+                if about.startswith(REMINDER)
+                else f"[Desk event] Check-in due{delay}: {about}. "
+                "Check in with the user now, in one or two sentences."
             )
+            answer = await self._desk_event(prompt, self.tools("", None))
             # Not tied to a delegation: GPT-Live speaks it as a new turn.
             if generation == self.generation:
                 await voice.commentary(answer.strip(), None)
@@ -798,8 +882,14 @@ class Desk:
         except Exception as error:  # noqa: BLE001 - fall back to a plain spoken check-in
             self.log(f"desk: check-in failed: {error}")
             if generation == self.generation:
-                about = str(checkin["about"]).removeprefix("Focus check-in: ")
-                await voice.commentary(f"Quick check-in: {about}. How's it going?", None)
+                about = str(checkin["about"])
+                line = (
+                    f"Just a reminder: {about.removeprefix(REMINDER)}."
+                    if about.startswith(REMINDER)
+                    else f"Quick check-in: {about.removeprefix('Focus check-in: ')}. "
+                    "How's it going?"
+                )
+                await voice.commentary(line, None)
         finally:
             await self.send(self.state())
 
@@ -842,7 +932,8 @@ class Desk:
             return
         self.calling = True
         about = str(checkin["about"])
-        task = about.removeprefix("Focus check-in: ")
+        task = about.removeprefix("Focus check-in: ").removeprefix(REMINDER)
+        reminder = about.startswith(REMINDER)
         self.log(f'desk: {why}; calling {mask(away.to_number)} about "{task}"')
         await self.send({"type": "calling", "about": about})
         try:
@@ -855,6 +946,8 @@ class Desk:
             greeting = (
                 "Hi, it's Toad, your AI desk buddy, calling like you asked. What's up?"
                 if requested
+                else f"Hi, it's Toad, your AI desk buddy, with your reminder: {task}."
+                if reminder
                 else "Hi, it's Toad, your AI desk buddy. You're away from your desk, so I'm "
                 f"calling for a quick check-in on {task}. How's it going?"
             )

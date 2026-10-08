@@ -8,8 +8,6 @@
 - answers Toad's function calls locally
 - handles errors
 
-It is a Python port of Desku's `agent/desku.sh` (bash, curl and jq). The commands, API calls and local tools match the bash version.
-
 `toad-agent.json` is the single definition of Toad's agent. The engine in `../server/` creates or updates the saved agent from it on startup (`PROVIDER_MODE=openai`) and keeps its own session; this app saves its own agent ID and session in `agent/state/`, separate from the engine's. To check the definition against the server's tools, run `.venv/bin/python .claude/skills/toad-agent/scripts/check_agent.py`.
 
 ## Setup

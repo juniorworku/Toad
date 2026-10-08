@@ -5,7 +5,7 @@ description: Run, test and debug Toad's Python engine (the FastAPI server in ser
 
 # Toad engine
 
-Toad is a desk-companion app: a Kotlin Android phone app (`android/`) plus a Python engine (`server/`) that rebuilds Desku's Node/TypeScript server. The phone streams mic audio to the engine; the engine runs a GPT-Live voice session, hands delegated work to a saved Agents API agent ("Toad", `agent/toad-agent.json`), runs that agent's tools, and speaks first when check-ins come due.
+Toad is a desk-companion app: a Kotlin Android phone app (`android/`) plus a Python engine (`server/`). The phone streams mic audio to the engine; the engine runs a GPT-Live voice session, hands delegated work to a saved Agents API agent ("Toad", `agent/toad-agent.json`), runs that agent's tools, and speaks first when check-ins come due.
 
 Always work from the repository root and call tools through `.venv/bin/python -m …` (console scripts in `.venv/bin` may carry a stale path).
 
@@ -36,18 +36,18 @@ prints a short summary of `/api/overview` (device, voice, brain, focus, check-in
 
 ## Where things live
 
-| Module (`server/src/toad_server/`) | Job | Desku original |
-| --- | --- | --- |
-| `main.py` | routes: `/device` socket, `/api/overview`, `/api/apps/connect`, `/p/<id>`, `/agent(.html)`, `/`; provider wiring; token redaction in logs | `index.ts` |
-| `desk.py` | the engine: one phone, voice session lifecycle, delegations → brain, check-ins, presence welcome-back, Today screen, away calls, desk controls | `engine/Desk.ts` |
-| `tools.py` | the 12 desk tools the agent calls, plus Composio pass-through | `engine/tools.ts` |
-| `brain.py` | saved-agent sync, persistent session, serialized turns, tool results, session recovery | `brain/AgentBrain.ts` |
-| `live.py`, `prompt.py`, `transcript.py` | GPT-Live client, voice instructions, transcript folding | `live/*` |
-| `store.py`, `pages.py`, `today.py` | atomic JSON state, sandboxed pages, Today screen | `store/`, `pages/`, `engine/today.ts` |
-| `apps.py`, `phone.py` | Composio apps, AgentPhone calls | `apps/Apps.ts`, `phone/AgentPhone.ts` |
-| `memory_policy.py` | "only save when asked", enforced in code | `brain/MemoryPolicy.ts` |
+| Module (`server/src/toad_server/`) | Job |
+| --- | --- |
+| `main.py` | routes: `/device` socket, `/api/overview`, `/api/apps/connect`, `/p/<id>`, `/agent(.html)`, `/`; provider wiring; token redaction in logs |
+| `desk.py` | the engine: one phone, voice session lifecycle, delegations → brain, check-ins, presence welcome-back, Today screen, away calls, desk controls |
+| `tools.py` | the 15 desk tools the agent calls, plus Composio pass-through |
+| `brain.py` | saved-agent sync, persistent session, serialized turns, tool results, session recovery |
+| `live.py`, `prompt.py`, `transcript.py` | GPT-Live client, voice instructions, transcript folding |
+| `store.py`, `pages.py`, `today.py` | atomic JSON state, sandboxed pages, Today screen |
+| `apps.py`, `phone.py` | Composio apps, AgentPhone calls |
+| `memory_policy.py` | "only save when asked", enforced in code |
 
-Tests live in `server/tests/`; `fakes.py` has the scripted voice (`FakeLive`), brain (`FakeBrain`), phone (`FakeDevice`) and a controlled clock (`Rig`). Ported Desku suites: `test_engine.py` (desk.test.ts), `test_away.py` (away.test.ts), `test_apps.py` (apps.test.ts). New behavior gets a test in the same style.
+Tests live in `server/tests/`; `fakes.py` has the scripted voice (`FakeLive`), brain (`FakeBrain`), phone (`FakeDevice`) and a controlled clock (`Rig`). Main suites: `test_engine.py` (the desk), `test_away.py` (calls), `test_apps.py` (Composio), `test_companion.py` (reminders, focus time, briefings, breaks, app-change consent), `test_protocol.py` (against the Kotlin source). New behavior gets a test in the same style.
 
 ## Device protocol (must stay compatible with `android/…/engine/EngineLink.kt`)
 

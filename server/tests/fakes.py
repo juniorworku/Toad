@@ -172,6 +172,9 @@ class Rig:
             "time_zone": "America/New_York",
             "delegation_settle_seconds": 0,
             "quiet_hours": None,
+            # Off unless a test is about them, so each behavior is tested on its own.
+            "morning_briefing": False,
+            "break_after_minutes": 0,
         }
         options.update(settings)
         self.desk = Desk(

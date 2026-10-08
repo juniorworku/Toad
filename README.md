@@ -2,9 +2,9 @@
 
 > Your old phone already has eyes, ears and a voice. Toad gives it a brain and a useful job.
 
-Toad turns a spare Android phone (Android 8.0+) into a desk companion: a moss-green toad with raised eyes and a wide smile, sitting on a stand next to you. You talk to it, show it things through the camera, and ask it to remember what matters. It helps you pick one thing to work on, keeps your to-do list, and checks in when the focus timer ends. If you're away from the desk, it can phone you.
+Toad turns a spare Android phone (Android 8.0+) into a desk companion: a moss-green toad with raised eyes and a wide smile, sitting on a stand next to you. You talk to it, show it things through the camera, and ask it to remember what matters. It helps you pick one thing to work on, keeps your to-do list and reminders, checks in when the focus timer ends, briefs you on your day when you sit down, and suggests a break when you've been at it too long. If you're away from the desk, it can phone you.
 
-Toad is a rebuild of the open-source [Desku](../Desku) with the server rewritten in **Python**. The Android app is Desku's Kotlin/Compose app, rebranded with a new animated character; the engine is a FastAPI port of Desku's Node engine that keeps the same architecture, device protocol, tools and behavior.
+Toad has two parts: a Kotlin/Compose **Android app** that is the eyes, ears, voice and face, and a **Python engine** (FastAPI) that runs the conversation, the brain's tools, reminders and check-ins, and the integrations.
 
 ## How it fits together
 
@@ -21,8 +21,8 @@ Toad is a rebuild of the open-source [Desku](../Desku) with the server rewritten
 ```
 
 - **Engine mode** (Settings → engine address set): the phone streams the mic up and plays Toad's voice back, answers camera requests, and shows the engine's memories, focus timer, check-ins, pages and app links. Talk, the wake phrase and check-ins open the voice session; screen buttons go to the brain as taps.
-- **On-phone mode** (address blank): the original Desku behavior, with Claude running on the phone and six local tools.
-- **The brain** is one saved Agents API agent, defined in [`agent/toad-agent.json`](agent/toad-agent.json): Toad's instructions, hosted web search and 12 desk tools (`get_desk_status`, `set_focus`, `save_memory`, `delete_memory`, `look_through_camera`, `call_phone`, `control_desk`, `show_page`, `add_todo`, `complete_todo`, `remove_todo`, `show_today`), plus your connected apps through Composio. [`agent/toad_agent.py`](agent/README.md) drives the same agent from a terminal.
+- **On-phone mode** (address blank): Claude runs on the phone itself with six local tools, no engine needed.
+- **The brain** is one saved Agents API agent, defined in [`agent/toad-agent.json`](agent/toad-agent.json): Toad's instructions, hosted web search and 15 desk tools (`get_desk_status`, `set_focus`, `finish_focus`, `set_reminder`, `cancel_reminder`, `save_memory`, `delete_memory`, `look_through_camera`, `call_phone`, `control_desk`, `show_page`, `add_todo`, `complete_todo`, `remove_todo`, `show_today`), plus your connected apps through Composio. [`agent/toad_agent.py`](agent/README.md) drives the same agent from a terminal.
 
 The phone app follows design 1a "Nightlight": six screens that change with what Toad is doing (idle, listening, speaking, camera read, timer check-in, memories & privacy), and Toad's face shows the state (dozing, listening, thinking, talking, muted, peeking) instead of a spinner.
 
@@ -57,18 +57,23 @@ In the app: long-press the clock → Settings → engine `ws://127.0.0.1:8787` a
 | Brain: saved agent, persistent session, tools, recovery | Built | The real OpenAI Python SDK against a mock HTTP/SSE transport. **Not yet live.** |
 | Toad speaks first: check-ins when the timer ends | Built | Tests: due, late, offline-then-reconnect, once only |
 | Memory only when asked, enforced in code | Built | Policy tests; the tool refuses unasked saves, including from call transcripts |
-| Camera: instant photo on request, honest when off | Built | Engine tests (round trip, switched off, timeout, disconnect); phone side ported unchanged |
+| Camera: instant photo on request, honest when off | Built | Engine tests (round trip, switched off, timeout, disconnect) |
 | To-dos and the live Today screen | Built | Tests: add, check off, remove, same page updated in place, escaping |
 | Pages on the desk screen (sandboxed, UI kit) | Built | Tests: storage limits, CSP, kit injection, versioned links, delete auth |
-| Presence: Today on arrival, welcome back after 10+ minutes | Built | Tests with scripted presence and a controlled clock |
+| Presence: Today on arrival, welcome back after 10+ minutes (also while always listening) | Built | Tests with scripted presence and a controlled clock |
+| Reminders: in N minutes or at a time, once, daily or weekdays; cancel by words | Built | Tests incl. weekends, daylight saving, away calls |
+| Focus time: finish a focus with an outcome; minutes focused today | Built | Tests; shown on the Today screen and in desk status |
+| Morning briefing the first time you sit down each day | Built | Tests: once a day, not before 5 AM, not in quiet hours |
+| Break nudges after a long stretch at the desk | Built | Tests: short glances don't reset, a real break does, off with 0 |
+| Changes to your apps need your yes, enforced in code | Built | Tests: sends/creates/deletes refused without a yes to Toad's question; reads allowed |
 | Desk controls (camera, mute, memories, end conversation) | Built | Tests, including end-after-goodbye |
 | Barge-in, mute, idle close, always-listening reopen, Stop | Built | Tests with a controlled clock |
 | Apps through Composio (Python SDK) | Built | Tests against a fake SDK pinned to composio 0.25's shapes. **Not yet live.** |
 | Phone calls through AgentPhone (away, on request, a friend) | Built | Tests: offline, no reply, camera absence, quiet hours, startup grace, consent, errors; HTTP client against a mock API. **Not yet live.** |
 | Agent page and browser test client | Built | HTTP tests and a local run through the USB bridge |
-| Terminal agent client | Built | 41 tests against mocked API responses. **Not yet live.** |
+| Terminal agent client | Built | 44 tests against mocked API responses. **Not yet live.** |
 | Android app (both modes, kiosk, wake word, toad character) | Built | 13 JVM tests, debug APK and lint (zero errors). **Not yet on a real phone.** |
-| "Hey Toad" wake phrase | Built | Grammar ported; `scripts/check-wake-word.sh` checks synthetic voices. **Not yet with a real mic.** |
+| "Hey Toad" wake phrase | Built | `scripts/check-wake-word.sh` checks synthetic voices. **Not yet with a real mic.** |
 
 Run the whole offline suite with `.claude/skills/toad-engine/scripts/check.sh` and `scripts/validate-android.sh`.
 
@@ -78,8 +83,10 @@ Run the whole offline suite with `.claude/skills/toad-engine/scripts/check.sh` a
 2. You hold up a handwritten to-do list; it reads it and suggests one item.
 3. You choose together; it sets a 25-minute focus and puts it on the Today screen.
 4. "Remember that I'm working on this." The memory appears on screen.
-5. The timer ends: Toad speaks first and asks how it went. If you've left the desk, it calls you.
-6. Later, in a new conversation: "What was I supposed to focus on?" It answers from memory.
+5. The timer ends: Toad speaks first and asks how it went. "Done, the first draft is written": it records the session and your focus time. If you've left the desk, it calls you.
+6. "Remind me at 3 to call Mom." At 3, Toad reminds you out loud.
+7. Next morning you sit down: Toad gives a two-sentence briefing of your day.
+8. Later, in a new conversation: "What was I supposed to focus on?" It answers from memory.
 
 ## Privacy model
 
@@ -107,7 +114,7 @@ agent/           the saved agent definition and the terminal client             
 scripts/         setup, smoke test, Android validation, start/switch/demo tools → scripts/README.md
 design/avatar/   the toad character reference
 demo/            the handwritten to-do photo used by the demo and smoke tests
-docs/            live testing steps, parity with Desku, protocol, status, decisions
+docs/            features, live testing steps, protocol, status, decisions
 .claude/skills/  Claude Code skills for this repo (below)
 Dockerfile, fly.toml   one-machine cloud deployment
 ```
@@ -123,15 +130,15 @@ Dockerfile, fly.toml   one-machine cloud deployment
 | `toad-android` | building, installing and driving the phone app, kiosk and wake phrase |
 | `toad-apps` | Toad's Composio integration in Python |
 | `toad-pages` | writing and previewing desk pages with the UI kit |
-| `composio` | the upstream Composio skill, vendored from Desku (`.agents/skills/composio`, pinned in `skills-lock.json`) |
+| `composio` | the upstream Composio skill, vendored unchanged (`.agents/skills/composio`, pinned in `skills-lock.json`) |
 
 ## Docs
 
 - [Live testing steps](docs/LIVE_TESTING_STEPS.md): the remaining acceptance run with real providers and a real phone
-- [Parity with Desku](docs/PARITY.md): every Desku feature and where it lives in Toad
+- [Features](docs/FEATURES.md): every feature, where it lives in the code, and its tests
 - [Engine](server/README.md) · [Device protocol](docs/DEVICE_PROTOCOL.md) · [Status](docs/STATUS.md) · [Decisions](docs/DECISIONS.md)
-- History: [implementation plan](docs/IMPLEMENTATION_PLAN.md), [baseline review](docs/BASELINE_REVIEW.md), [workflow](docs/WORKFLOW.md), [Android validation](docs/ANDROID_VALIDATION.md)
+- History: [workflow](docs/WORKFLOW.md), [Android validation](docs/ANDROID_VALIDATION.md)
 
 ## License
 
-MIT, with Desku's original notice preserved. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

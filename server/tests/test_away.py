@@ -1,4 +1,4 @@
-"""Port of Desku's away-call tests (server/test/away.test.ts) and the AgentPhone client tests."""
+"""Away calls, calls on request, and the AgentPhone client."""
 
 import json
 from pathlib import Path

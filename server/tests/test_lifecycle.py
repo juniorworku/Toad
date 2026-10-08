@@ -82,7 +82,7 @@ async def test_end_after_reply_closes_then_always_listening_resumes(tmp_path: Pa
         assert desk.live == "idle" and not desk.listen_paused, "closed after the goodbye"
         clock[0] += 20
         await desk.tick()
-        assert desk.voice_task is not None, "like Desku, always-listening reopens later"
+        assert desk.voice_task is not None, "always-listening reopens later"
     finally:
         await desk.close()
 

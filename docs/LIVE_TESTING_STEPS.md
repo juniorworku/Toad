@@ -60,7 +60,7 @@ for k in OPENAI_API_KEY DEVICE_TOKEN COMPOSIO_API_KEY AGENTPHONE_API_KEY OWNER_P
 ```
 
 - [ ] The log shows no traceback and ends with `Toad engine ready.`
-- [ ] Open `http://localhost:8787/agent.html`. **Expect:** the dashboard opens without asking for a token (localhost), shows agent **Toad**, an `agentId` (`agent_…`), 12 desk tools plus web search, and Brain/Voice as connected or idle.
+- [ ] Open `http://localhost:8787/agent.html`. **Expect:** the dashboard opens without asking for a token (localhost), shows agent **Toad**, an `agentId` (`agent_…`), 15 desk tools plus web search, and Brain/Voice as connected or idle.
 - [ ] `.claude/skills/toad-engine/scripts/overview.sh` prints `provider: openai` and the same agent id.
 - [ ] Stop the engine (Ctrl-C) and start it again. **Expect:** no new agent is created (same `agentId`); the definition is only re-synced when `agent/toad-agent.json` changes.
 
@@ -74,7 +74,7 @@ With the engine stopped (the script uses a throwaway data folder, but the same s
 .venv/bin/python server/scripts/smoke_brain.py
 ```
 
-- [ ] **"Can you read my to-do list?"**: the camera tool sends `demo/handwritten-todo.jpg`. **Expect:** Toad names how many items there are and the first few. (Desku read all five items in 3 of 4 runs; one miss is not a failure.)
+- [ ] **"Can you read my to-do list?"**: the camera tool sends `demo/handwritten-todo.jpg`. **Expect:** Toad names how many items there are and the first few. (Reading every item of a handwritten list isn't guaranteed; one miss in a few tries is not a failure.)
 - [ ] **"I'll do the first one for 25 minutes. Check in on me after."** **Expect:** `store:` at the end shows that focus and one check-in about 25 minutes out.
 - [ ] **"The grant is due Friday, just so you know."** **Expect:** `memories: []` and no `UNEXPECTED` line. Toad may offer to remember it.
 
@@ -103,6 +103,9 @@ Start the engine (stage A command). Put on headphones, open `http://localhost:87
 - [ ] Press **Stop**, then **Talk** again (a new voice session) and ask "What was I working on?" **Expect:** "the grant intro": the brain session carries over between voice sessions.
 - [ ] Talk over Toad while it's speaking. **Expect:** it stops within about a second (barge-in sends `interrupt`; queued audio is dropped).
 - [ ] Say "Add email Felipe to my to-dos" and then "What's on my list?" **Expect:** the Today page link appears in the test client log, and `/p/<id>` shows the list.
+- [ ] Say "Done with the grant intro, the first draft is written." **Expect:** Toad marks it finished; "How much did I focus today?" gets the real number of minutes; the Today page shows *Focused today*.
+- [ ] Say "Remind me in two minutes to stretch." **Expect:** confirmation with the time; two minutes later the phone chimes and Toad says the reminder unprompted (no focus check-in wording).
+- [ ] Say "Every weekday at nine, remind me about standup," then "What reminders do I have?" and "Cancel the standup reminder." **Expect:** it repeats the time and "weekdays", lists it, then cancels it; the Today page follows along.
 - [ ] Stay silent for `IDLE_CLOSE_SECONDS`. **Expect:** state returns to `idle` (no idle charges).
 
 ## 5. Stage D: the stand-in phone (camera, scripted speech)
@@ -136,7 +139,10 @@ On the phone: allow microphone and camera; long-press the clock → Settings →
 - [ ] **Memories screen.** Tap memories, delete one. **Expect:** it disappears on the dashboard too. "Forget that" by voice also works.
 - [ ] **Screen buttons.** Tap a suggested reply (e.g. "10 more minutes"). **Expect:** Toad answers it out loud as if you'd said it.
 - [ ] **Pages.** "Show my day" and "Put a comparison of … on the screen." **Expect:** the page opens on the phone in the dark Toad kit style.
-- [ ] **Presence.** Sit in front of the phone. **Expect:** the Today screen appears when it first sees you. With a focus set, leave for more than 10 minutes, then come back (outside quiet hours). **Expect:** Toad welcomes you back and asks about the focus.
+- [ ] **Presence.** Sit in front of the phone. **Expect:** the Today screen appears when it first sees you. With a focus set, leave for more than 10 minutes, then come back (outside quiet hours). **Expect:** Toad welcomes you back and asks about the focus, also with `ALWAYS_LISTEN=1`.
+- [ ] **Morning briefing.** The first time the camera sees you on a new day (after 5 AM, outside quiet hours). **Expect:** a two- or three-sentence briefing (to-dos, reminders, calendar if connected) and an offer to pick a focus. It doesn't repeat that day. To test without waiting a day, clear `briefedOn` in `data/toad.json` while the engine is stopped.
+- [ ] **Break nudge.** Set `BREAK_AFTER_MINUTES=2` in `.env`, restart, and stay in view for 2 minutes. **Expect:** one friendly break suggestion; glancing away for a few seconds doesn't reset it; stepping away for 2+ minutes does. Set it back to 50 afterwards.
+- [ ] **Reminder on the phone.** Set a reminder for one minute. **Expect:** a chime and the reminder as a notice on screen, not the focus check-in screen with its timer.
 - [ ] **Wake phrase** (model fetched before installing). With the mic unmuted say "Hey Toad". **Expect:** it wakes. Also say similar phrases ("hey road", "today") and check they don't wake it. Note false wakes/misses in the results; the grammar is untested on real speech.
 - [ ] **Reconnect.** Unplug USB for 30 seconds and plug it back in (re-run `adb reverse` or use `scripts/start-toad.sh`). **Expect:** the app reconnects by itself; any check-in that came due meanwhile is delivered on reconnect.
 - [ ] **On-phone mode still works.** Clear the engine address in Settings and add an Anthropic key. **Expect:** the original phone-only Claude mode works (`scripts/demo.sh` runs the scripted demo).
@@ -150,7 +156,7 @@ Set `COMPOSIO_API_KEY` in `.env` and restart the engine. **Expect:** the log sho
 - [ ] Ask "What's on my calendar today?" **Expect:** Toad says the calendar isn't connected and a **Connect app** link appears on the phone screen and in the test client (it never reads the URL aloud).
 - [ ] Connect from the dashboard (*Connect an app* → Google Calendar) or `.venv/bin/python server/scripts/connect_app.py googlecalendar`. **Expect:** the dashboard chip goes from connecting to connected.
 - [ ] Ask again. **Expect:** a spoken summary of today's events; "Put it on the screen" shows a page.
-- [ ] Ask it to create an event. **Expect:** it says exactly what it will create and waits for your yes before doing it.
+- [ ] Ask it to create an event. **Expect:** it says exactly what it will create and waits for your yes before doing it. The engine enforces this: if the model tries to create it before your yes, the log shows the tool refused (`would change the user's apps`) and Toad asks instead.
 - [ ] If anything fails, the error includes `(Composio log log_…)`; keep that ID for diagnosis.
 
 Terminal alternative: `.venv/bin/python server/scripts/smoke_apps.py "What's on my calendar today?"`.

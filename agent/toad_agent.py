@@ -432,7 +432,14 @@ class ToadAgent:
             db["memories"] = [m for m in memories if m.get("id") != memory_id]
             self.write_db(db)
             return f"Deleted {memory_id}."
-        if name in ("call_phone", "control_desk", "show_page"):
+        if name in (
+            "call_phone",
+            "control_desk",
+            "show_page",
+            "finish_focus",
+            "set_reminder",
+            "cancel_reminder",
+        ):
             raise ToolError(SERVER_ONLY)
         if name.startswith("COMPOSIO_"):
             raise ToolError(COMPOSIO_ONLY)

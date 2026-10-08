@@ -64,7 +64,7 @@ def test_overview_needs_the_token_and_reports_the_desk(tmp_path: Path) -> None:
         assert [m["text"] for m in data["memories"]] == ["Grant is due Friday."]
         kinds = {t["name"]: t["kind"] for t in data["tools"]}
         assert kinds["web_search"] == "hosted" and kinds["call_phone"] == "desk"
-        assert len([k for k in kinds.values() if k == "desk"]) == 12, "all 12 desk tools"
+        assert len([k for k in kinds.values() if k == "desk"]) == 15, "all 15 desk tools"
         with http.websocket_connect("/device?token=secret"):
             assert http.get("/api/overview", headers=AUTH).json()["status"]["device"] is True
 
