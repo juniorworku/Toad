@@ -1,0 +1,83 @@
+{
+  "device_to_engine": [
+    {
+      "type": "start"
+    },
+    {
+      "type": "stop"
+    },
+    {
+      "type": "mute"
+    },
+    {
+      "type": "unmute"
+    },
+    {
+      "type": "camera",
+      "enabled": false
+    },
+    {
+      "type": "presence",
+      "present": true
+    },
+    {
+      "type": "say",
+      "text": "Hello Toad"
+    },
+    {
+      "type": "forget",
+      "id": "m1"
+    },
+    {
+      "type": "forget_all"
+    },
+    {
+      "type": "photo",
+      "requestId": "synthetic",
+      "image": "synthetic-jpeg"
+    },
+    {
+      "type": "photo_error",
+      "requestId": "synthetic",
+      "reason": "camera off"
+    }
+  ],
+  "engine_to_device": [
+    {
+      "type": "state",
+      "live": "open",
+      "muted": false,
+      "camera": true,
+      "thinking": false
+    },
+    {
+      "type": "desk",
+      "memories": [],
+      "focus": null,
+      "checkins": []
+    },
+    {
+      "type": "transcript",
+      "role": "user",
+      "delta": "Hello"
+    },
+    {
+      "type": "capture",
+      "requestId": "synthetic",
+      "countdownSeconds": 0
+    },
+    {
+      "type": "interrupt"
+    },
+    {
+      "type": "error",
+      "message": "synthetic"
+    }
+  ],
+  "audio": {
+    "format": "pcm_s16le",
+    "channels": 1,
+    "sample_rate": 24000,
+    "nominal_frame_bytes": 4800
+  }
+}

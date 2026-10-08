@@ -1,0 +1,6 @@
+# Copy to local.properties; ignored by Git. Use your own SDK path and credentials.
+# sdk.dir=/path/to/android-sdk
+# toad.serverUrl=ws://127.0.0.1:8787
+# toad.deviceToken=<same new token as Python server>
+# toad.kioskPin=<your independent admin PIN>
+# anthropic.apiKey=<optional local-mode key>

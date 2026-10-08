@@ -1,0 +1,8 @@
+{
+  "name": "Toad",
+  "android_application_id": "com.toad.companion",
+  "python_package": "toad_server",
+  "wake_phrase": "Hey Toad",
+  "avatar": "moss-green toad",
+  "status": "design reference; native animated implementation pending"
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">Toad desk companion</title><desc id="desc">A friendly moss-green toad with raised eyes, pale belly, spots and a wide smile.</desc>
+<ellipse cx="115" cy="425" rx="78" ry="34" fill="#5B7547"/><ellipse cx="397" cy="425" rx="78" ry="34" fill="#5B7547"/>
+<path d="M75 204 C38 52 218 20 226 147 Q256 130 286 147 C294 20 474 52 437 204 C550 302 459 444 380 458 Q256 491 132 458 C53 444 -38 302 75 204Z" fill="#87A866"/>
+<ellipse cx="256" cy="371" rx="123" ry="74" fill="#DDE8AF"/>
+<ellipse cx="151" cy="157" rx="68" ry="76" fill="#DDE8AF"/><ellipse cx="361" cy="157" rx="68" ry="76" fill="#DDE8AF"/>
+<ellipse cx="153" cy="159" rx="25" ry="33" fill="#202A36"/><ellipse cx="359" cy="159" rx="25" ry="33" fill="#202A36"/>
+<circle cx="161" cy="146" r="8" fill="white"/><circle cx="367" cy="146" r="8" fill="white"/>
+<path d="M164 270 Q256 326 348 270" fill="none" stroke="#202A36" stroke-width="9" stroke-linecap="round"/>
+<g fill="#5B7547"><circle cx="85" cy="294" r="10"/><circle cx="101" cy="333" r="8"/><circle cx="68" cy="351" r="11"/><circle cx="427" cy="294" r="10"/><circle cx="411" cy="333" r="8"/><circle cx="444" cy="351" r="11"/></g>
+</svg>

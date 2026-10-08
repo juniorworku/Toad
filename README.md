@@ -1,16 +1,16 @@
-# Nook
+# Toad
 
-A Python-server and Kotlin Android rebuild of the Desku AI desk companion, with a new animated amber owl.
+A Python-server and Kotlin Android rebuild of the Desku AI desk companion, with a new animated moss-green toad.
 
 ## Implemented
 
-- Kotlin/Compose application migrated and rebranded as `com.nook.companion`, retaining local Claude mode, hardware, screens, kiosk behavior and JVM tests.
-- Native owl drawing and launcher icon; six expressions, blinking, eye-follow and voice-driven beak animation.
+- Kotlin/Compose application migrated and rebranded as `com.toad.companion`, retaining local Claude mode, hardware, screens, kiosk behavior and JVM tests.
+- Native toad drawing and launcher icon; six expressions, blinking, eye-follow and voice-driven mouth animation.
 - Python FastAPI engine: authenticated device WebSocket, ordered state/JSON/binary transport, microphone mute, stop/restart, replacement/reconnect cleanup, camera response correlation, memory deletion and presence tracking.
 - Atomic JSON store for memories, focus/history, todos, check-ins, hosted-agent references and Today page ID; server-side memory consent policy.
-- Explicit diagnostic fake voice adapter, regression tests and a real local HTTP/WebSocket smoke script.
+- GPT-Live adapter, saved-agent SDK integration, persisted pages and ten desk tools; explicit diagnostic fake and local smoke script.
 
-The Python engine **does not yet provide AI speech**. Fake mode consumes microphone audio without transcribing it; typed `say` returns a labeled transcript and quiet diagnostic tone. The Android source has not been compiled or tested on a device yet. Model tools, live-provider adapters, scheduler, pages, dashboard, apps and calls remain pending.
+Python now includes opt-in GPT-Live speech transport and a saved-agent reasoning adapter with tool execution, session recovery, camera input, memory consent, tasks, and Today/generated pages. Fake mode remains the default: microphone audio is consumed without recognition; typed input produces a diagnostic transcript and tone. Live account access and Android device behavior remain unverified. Scheduler, provider reconnection/idle policies, dashboard, apps and phone calls remain pending.
 
 ## Run the Python engine
 
@@ -21,7 +21,7 @@ From the repository root:
 .venv/bin/python -m pip install --no-deps -e './server[dev]'
 export DEVICE_TOKEN="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export PROVIDER_MODE=fake
-.venv/bin/python -m uvicorn nook_server.main:app --host 127.0.0.1 --port 8787 --no-access-log
+.venv/bin/python -m uvicorn toad_server.main:app --host 127.0.0.1 --port 8787 --no-access-log
 ```
 
 For setup from scratch, first run `python3 -m venv .venv`. Reuse the same newly generated device token in Android settings; generating a new value every start requires updating the phone. `.env` can supply configuration instead; keep it out of Git. Disable access logs because the compatibility WebSocket URL carries its token in the query string. No original secrets/account identifiers were imported.
@@ -32,6 +32,8 @@ For setup from scratch, first run `python3 -m venv .venv`. Reuse the same newly 
 .venv/bin/python -m mypy --strict server/src
 .venv/bin/python scripts/smoke_local.py
 ```
+
+For live mode, set `PROVIDER_MODE=openai`, `OPENAI_API_KEY`, and optionally `OPENAI_PROJECT` in your private `.env`. The server creates or updates the saved agent and persists its session reference. This mode makes paid API requests when enabled. See `server/.env.example` for the documented endpoint/model defaults.
 
 ## Android
 
@@ -46,6 +48,4 @@ See [Android setup](android/README.md). Build from `android/` with JDK 17 and An
 - [Baseline review](docs/BASELINE_REVIEW.md)
 - [Avatar](design/avatar/README.md)
 
-Baseline: Desku commit `2aea122`. MIT attribution is preserved in [LICENSE](LICENSE). No commits, remote repository, provider provisioning or deployment have been created.
-# Toad
-# Toad
+Baseline: Desku commit `2aea122`. MIT attribution is preserved in [LICENSE](LICENSE). GitHub target: `juniorworku/Toad`. No provider provisioning or deployment has been performed.
