@@ -135,6 +135,7 @@ Dockerfile, fly.toml   one-machine cloud deployment
 ## Docs
 
 - [Live testing steps](docs/LIVE_TESTING_STEPS.md): the remaining acceptance run with real providers and a real phone
+- [Handoff](HANDOFF.md): where things stand and what to do next
 - [Features](docs/FEATURES.md): every feature, where it lives in the code, and its tests
 - [Engine](server/README.md) · [Device protocol](docs/DEVICE_PROTOCOL.md) · [Status](docs/STATUS.md) · [Decisions](docs/DECISIONS.md)
 - History: [workflow](docs/WORKFLOW.md), [Android validation](docs/ANDROID_VALIDATION.md)

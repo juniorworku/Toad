@@ -127,3 +127,16 @@ def test_device_token_is_redacted_from_uvicorn_logs() -> None:
     assert RedactToken().filter(record)
     assert record.getMessage() == '127.0.0.1:5 - "WebSocket /device?token=…&x=1" [accepted]'
     assert any(isinstance(f, RedactToken) for f in logging.getLogger("uvicorn.error").filters)
+
+
+def test_the_false_handshake_error_after_a_401_is_dropped() -> None:
+    import logging
+
+    from toad_server.main import DropDenialNoise
+
+    def record(message: str) -> logging.LogRecord:
+        return logging.LogRecord("uvicorn.error", logging.ERROR, "", 0, message, (), None)
+
+    noise = DropDenialNoise()
+    assert not noise.filter(record("ASGI callable returned without completing handshake."))
+    assert noise.filter(record("Exception in ASGI application\n")), "real errors still show"

@@ -52,8 +52,18 @@ class RedactToken(logging.Filter):
         return True
 
 
+class DropDenialNoise(logging.Filter):
+    """Uvicorn's default WebSocket implementation logs "returned without completing handshake"
+    as an ERROR after a correct HTTP 401 denial (it never marks a denial response as finished).
+    The only path here that returns without accepting is that denial, already logged as 401."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.getMessage() != "ASGI callable returned without completing handshake."
+
+
 for _name in ("uvicorn.error", "uvicorn.access"):
     logging.getLogger(_name).addFilter(RedactToken())
+logging.getLogger("uvicorn.error").addFilter(DropDenialNoise())
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

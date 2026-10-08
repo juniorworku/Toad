@@ -16,6 +16,7 @@ Updated October 8, 2026. What each feature does and where it's tested: [FEATURES
 - `.claude/skills/toad-engine/scripts/check.sh`: all server and agent client tests, Ruff lint and format, strict mypy (server, agent client, server scripts) and the agent/tool check pass.
 - Protocol conformance against the Kotlin source: every message type the engine sends is handled by `EngineLink.kt`, and every type the app sends is accepted by the engine.
 - `scripts/validate-android.sh`: JVM tests pass, the debug APK builds, lint has zero errors.
+- The Docker image builds (301 MB) and the container serves health, the agent page, the overview (bearer auth) and the phone socket, with the token redacted from its log.
 - A local fake-mode run of the engine behind `server/scripts/usb_bridge.py`, driven by `server/scripts/fake_phone.py`: HTTP routes, bearer auth, localhost token fill-in, the device socket through the bridge, a tap round trip, audio resampling, the token redacted from the log. `scripts/smoke_local.py` passes.
 
 ## Not verified yet
