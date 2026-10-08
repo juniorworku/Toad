@@ -38,6 +38,7 @@ class WifiSetup(private val activity: Activity) {
         val dpm = ctx.getSystemService(DevicePolicyManager::class.java)
         val admin = ComponentName(ctx, ToadAdmin::class.java)
         val perms = buildList {
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }

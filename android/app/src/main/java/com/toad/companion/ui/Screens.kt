@@ -1,6 +1,8 @@
 package com.toad.companion.ui
 
 import android.graphics.BitmapFactory
+import androidx.compose.ui.platform.LocalConfiguration
+import java.util.Locale
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
@@ -95,7 +97,6 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
-import java.util.Locale
 
 private enum class Screen { Idle, Conversation, Camera, CheckIn, Memories }
 
@@ -466,13 +467,14 @@ private fun ChoiceChips(choices: List<Choice>, onChoice: (Choice) -> Unit) {
 
 @Composable
 private fun RememberedCard(text: String, at: Long) {
+    val locale = LocalConfiguration.current.locales[0]
     Row(
         Modifier.fillMaxWidth().background(Night.Chip, RoundedCornerShape(20.dp)).padding(horizontal = 18.dp, vertical = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Toad(Expression.Peeking, 40.dp, halo = false, animate = false, modifier = Modifier.padding(top = 2.dp))
         Column(Modifier.weight(1f)) {
-            Text("REMEMBERED · ${SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(at)).uppercase()}", style = mono())
+            Text("REMEMBERED · ${SimpleDateFormat("h:mm a", locale).format(Date(at)).uppercase(locale)}", style = mono())
             Spacer(Modifier.height(4.dp))
             Text(text, style = fig(17.sp, line = 23.sp))
         }

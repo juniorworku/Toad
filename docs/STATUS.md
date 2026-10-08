@@ -16,15 +16,17 @@
 - **49 Python tests pass**, including mock SDK HTTP/SSE tool actions and real loopback voice-provider WebSocket exchange.
 - Strict mypy and Ruff lint/format checks pass. Dependency versions are locked.
 - Local fake-mode HTTP/device smoke passes; Android XML and avatar SVG parse successfully.
-- Android build remains blocked by missing JDK; device audio, wake phrase and avatar rendering are unverified.
+- Java 17, adb and Android SDK 36 installed. Debug APK builds; **13 Android JVM tests pass**; lint passes with **zero errors and 33 warnings**. APK signing and package identity verified. Device audio, wake phrase and avatar rendering remain unverified; physical-device testing is deferred by request.
 - No live AI calls, original secrets, or private state imported. GitHub target is `juniorworku/Toad`; deployment has not been performed.
 
 ## Remaining parity work
 
 1. Presence welcome-back behavior and optional away/no-reply calling. Current check-ins wait offline because phone calls are not configured.
 2. Browser client/dashboard and optional Composio/AgentPhone integrations.
-3. JDK 17/Android SDK setup, Android build/tests and physical-device audio/avatar/wake/kiosk acceptance.
+3. Physical-device audio/avatar/wake/kiosk acceptance and remaining Android lint warnings.
 4. Live provider account verification and deployment/operating scripts.
+
+Android validation details: [ANDROID_VALIDATION.md](ANDROID_VALIDATION.md).
 
 Workflow and batch history: [WORKFLOW.md](WORKFLOW.md).
 

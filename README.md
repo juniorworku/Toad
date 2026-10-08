@@ -8,9 +8,9 @@ A Python-server and Kotlin Android rebuild of the Desku AI desk companion, with 
 - Native toad drawing and launcher icon; six expressions, blinking, eye-follow and voice-driven mouth animation.
 - Python FastAPI engine: authenticated device WebSocket, ordered state/JSON/binary transport, microphone mute, stop/restart, replacement/reconnect cleanup, camera response correlation, memory deletion and presence tracking.
 - Atomic JSON store for memories, focus/history, todos, check-ins, hosted-agent references and Today page ID; server-side memory consent policy.
-- GPT-Live adapter, saved-agent SDK integration, persisted pages and ten desk tools; explicit diagnostic fake and local smoke script.
+- GPT-Live adapter, saved-agent SDK integration, persisted pages and desk tools; explicit diagnostic fake and local smoke script.
 
-Python now includes opt-in GPT-Live speech transport and a saved-agent reasoning adapter with tool execution, session recovery, camera input, memory consent, tasks, and Today/generated pages. Fake mode remains the default: microphone audio is consumed without recognition; typed input produces a diagnostic transcript and tone. Live account access and Android device behavior remain unverified. Scheduler, provider reconnection/idle policies, dashboard, apps and phone calls remain pending.
+Python now includes opt-in GPT-Live speech transport and a saved-agent reasoning adapter with tool execution, session recovery, camera input, memory consent, tasks, and Today/generated pages. Fake mode remains the default: microphone audio is consumed without recognition; typed input produces a diagnostic transcript and tone. Live account access and Android device behavior remain unverified. Scheduled check-ins, voice reconnection and idle-close policies are implemented. Dashboard, presence welcomes, apps and phone calls remain pending.
 
 ## Run the Python engine
 
@@ -40,6 +40,8 @@ For live mode, set `PROVIDER_MODE=openai`, `OPENAI_API_KEY`, and optionally `OPE
 ## Android
 
 See [Android setup](android/README.md). Build from `android/` with JDK 17 and Android SDK 36. Connect a USB phone with `adb reverse tcp:8787 tcp:8787`, then set the engine address to `ws://127.0.0.1:8787` and enter the token. Leave the engine address blank for the original phone-only Claude behavior.
+
+Android validation passes: debug APK built, 13 JVM tests passed, and lint has zero errors with 33 remaining warnings. Java and adb are available through `source scripts/android-env.sh`; rerun with `scripts/validate-android.sh`. Physical-device testing is deferred. See [validation report](docs/ANDROID_VALIDATION.md).
 
 ## Rebuild references
 

@@ -124,10 +124,10 @@ fun DrawnToad(
         val body = Path().apply {
             moveTo(34f * sx, 89f * sy)
             cubicTo(19f * sx, 22f * sy, 92f * sx, 4f * sy, 106f * sx, 58f * sy)
-            quadraticBezierTo(120f * sx, 51f * sy, 134f * sx, 58f * sy)
+            quadraticTo(120f * sx, 51f * sy, 134f * sx, 58f * sy)
             cubicTo(148f * sx, 4f * sy, 221f * sx, 22f * sy, 206f * sx, 89f * sy)
             cubicTo(255f * sx, 127f * sy, 222f * sx, 189f * sy, 176f * sx, 195f * sy)
-            quadraticBezierTo(120f * sx, 207f * sy, 64f * sx, 195f * sy)
+            quadraticTo(120f * sx, 207f * sy, 64f * sx, 195f * sy)
             cubicTo(18f * sx, 189f * sy, -15f * sx, 127f * sy, 34f * sx, 89f * sy)
             close()
         }
@@ -146,7 +146,7 @@ fun DrawnToad(
         // Wide smile becomes a voice-driven mouth.
         val smile = Path().apply {
             moveTo(75f * sx, 113f * sy)
-            quadraticBezierTo(120f * sx, (134f + mouth * 14f) * sy, 165f * sx, 113f * sy)
+            quadraticTo(120f * sx, (134f + mouth * 14f) * sy, 165f * sx, 113f * sy)
         }
         drawPath(smile, ink, style = Stroke(3f * sx))
         if (mouth > .03f) oval(ink, 96f, 117f, 48f, 21f * mouth)

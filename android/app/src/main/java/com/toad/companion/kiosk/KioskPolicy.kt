@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.BatteryManager
 import android.os.UserManager
 import android.provider.Settings
@@ -52,7 +53,9 @@ object KioskPolicy {
         val pkg = activity.packageName
         fun step(name: String, block: () -> Unit) = runCatching(block).onFailure { Log.w(TAG, "$name failed", it) }
         step("lock task packages") { d.setLockTaskPackages(a, arrayOf(pkg)) }
-        step("lock task features") { d.setLockTaskFeatures(a, DevicePolicyManager.LOCK_TASK_FEATURE_NONE) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            step("lock task features") { d.setLockTaskFeatures(a, DevicePolicyManager.LOCK_TASK_FEATURE_NONE) }
+        }
         step("keyguard") { d.setKeyguardDisabled(a, true) }
         step("status bar") { d.setStatusBarDisabled(a, true) }
         step("home app") {

@@ -24,7 +24,20 @@ def main() -> None:
             "Repository environment:", "present" if executable.exists() else "missing"
         )
         for command in ("java", "adb"):
-            print(command + ":", shutil.which(command) or "missing")
+            local_tool = (
+                ROOT
+                / ".tools"
+                / (
+                    "jdk-17/bin/java"
+                    if command == "java"
+                    else "android-sdk/platform-tools/adb"
+                )
+            )
+            print(
+                command + ":",
+                shutil.which(command)
+                or (str(local_tool) if local_tool.exists() else "missing"),
+            )
         print("Private .env:", "present" if (ROOT / ".env").exists() else "missing")
         return
     if not executable.exists():
